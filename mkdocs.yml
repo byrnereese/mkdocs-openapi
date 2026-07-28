@@ -1,0 +1,63 @@
+site_name: mkdocs-openapi
+site_description: Predictable API reference documentation from OpenAPI specifications
+use_directory_urls: true
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - content.tabs.link
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - tags
+  - openapi:
+      output_dir: example-site/api-reference
+      models_dir: example-site/models
+      models_title: Models
+
+nav:
+  - Overview: index.md
+  - Installation: installation.md
+  - Example site:
+      - Introduction: example-site/index.md
+      - Petstore API: example-site/openapi/spec.json
+
+markdown_extensions:
+  - abbr
+  - footnotes
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+validation:
+  nav:
+    omitted_files: warn
+    absolute_links: warn
+  links:
+    absolute_links: relative_to_docs
+    unrecognized_links: warn
+
