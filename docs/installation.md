@@ -66,9 +66,68 @@ operation page includes its OpenAPI tags and HTTP method as page metadata.
 | `models_dir` | `models` | Virtual source directory for component-schema pages. |
 | `models_title` | `Models` | Navigation title inserted beside the generated API section. |
 | `models_in_nav` | `true` | Include every model in navigation. Set to `false` to link only the Models index. |
+| `tag_nav` | unset | Ordered tag navigation. Entries may be tag names or titled sections containing tag names. |
+| `unlisted_tags` | `exclude` | Behavior for primary operation tags omitted from `tag_nav`: `exclude`, `append`, or `error`. |
 
 All configured directories must be relative paths and must differ from one
 another.
+
+### Select, order, and group tags
+
+Use `tag_nav` to make the generated navigation authoritative instead of relying
+on the tag order in the OpenAPI document:
+
+```yaml
+plugins:
+  - openapi:
+      tag_nav:
+        - Phone:
+            - Business Hours
+            - Call Blocking
+            - Call Control
+            - Call Forwarding
+            - Call Handling Rules
+            - States
+            - State-based Rules
+            - Interaction Rules
+            - Forwarding Targets
+        - SMS and Fax:
+            - Fax
+            - Message Exports
+            - Message Store
+            - Pager Messages
+            - SMS
+            - High Volume SMS
+      unlisted_tags: exclude
+```
+
+Each mapping creates an additional navigation level. A plain string places a
+tag directly below the API Reference section:
+
+```yaml
+tag_nav:
+  - Authentication
+  - Phone:
+      - Business Hours
+      - Call Control
+  - Webinars
+```
+
+Configured tags must be primary tags used by at least one operation. A tag
+cannot appear more than once. Unknown tags, duplicate tags, duplicate section
+titles, and empty sections cause the build to fail.
+
+`unlisted_tags` controls tags that are used as an operation's first tag but do
+not appear in `tag_nav`:
+
+- `exclude` omits their tag and operation pages.
+- `append` adds them at the root level after configured entries, preserving the
+  OpenAPI declaration order.
+- `error` fails the build and lists the missing tags.
+
+When `tag_nav` is unset, `unlisted_tags` has no effect and the plugin preserves
+its existing behavior: all primary tags are rendered in OpenAPI declaration
+order, followed by undeclared tags in encounter order.
 
 ## Markdown extensions
 

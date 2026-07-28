@@ -35,6 +35,10 @@ class OpenAPIPluginConfig(base.Config):
     models_dir = c.Type(str, default="models")
     models_title = c.Type(str, default="Models")
     models_in_nav = c.Type(bool, default=True)
+    tag_nav = c.Optional(c.Type(list))
+    unlisted_tags = c.Choice(
+        ("exclude", "append", "error"), default="exclude"
+    )
 
 
 class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
@@ -91,6 +95,8 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                 document,
                 output_dir=self.config.output_dir,
                 models_dir=self.config.models_dir,
+                tag_nav=self.config.tag_nav,
+                unlisted_tags=self.config.unlisted_tags,
             )
         except OpenAPIError as error:
             raise PluginError(f"openapi: {error}") from error

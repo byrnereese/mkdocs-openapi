@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Mapping
+from typing import Any
 
+from .errors import OpenAPIError
 from .model import GeneratedSite, ModelPage, Operation, TagGroup
 from .naming import UniqueSlugger, slugify
 from .parser import resolve_local_ref
@@ -28,6 +30,8 @@ def generate_site(
     *,
     output_dir: str = "api-reference",
     models_dir: str = "models",
+    tag_nav: list[Any] | None = None,
+    unlisted_tags: str = "exclude",
 ) -> GeneratedSite:
     """Generate Markdown pages and MkDocs navigation for an OpenAPI document."""
     output_dir = output_dir.strip("/")
@@ -115,7 +119,18 @@ def generate_site(
             groups[primary_tag].operations.append(operation)
             operations.append(operation)
 
-    ordered_groups = _order_groups(groups, declared_tags)
+    default_groups = _order_groups(groups, declared_tags)
+    nav_entries, ordered_groups = _configure_tag_nav(
+        default_groups,
+        tag_nav=tag_nav,
+        unlisted_tags=unlisted_tags,
+    )
+    selected_tags = {group.name for group in ordered_groups}
+    operations = [
+        operation
+        for operation in operations
+        if operation.primary_tag in selected_tags
+    ]
 
     schemas = document.get("components", {}).get("schemas", {})
     if not isinstance(schemas, Mapping):
@@ -148,13 +163,24 @@ def generate_site(
     }
     api_nav: list = [{"Overview": f"{output_dir}/index.md"}]
 
+    tag_children: dict[str, list] = {}
     for group in ordered_groups:
         pages[group.source_uri] = renderer.render_tag_overview(group)
         children: list = [{"Overview": group.source_uri}]
         for operation in group.operations:
             pages[operation.source_uri] = renderer.render_operation(operation)
             children.append({operation.title: operation.source_uri})
-        api_nav.append({group.name: children})
+        tag_children[group.name] = children
+
+    for section, section_groups in nav_entries:
+        entries = [
+            {group.name: tag_children[group.name]}
+            for group in section_groups
+        ]
+        if section is None:
+            api_nav.extend(entries)
+        else:
+            api_nav.append({section: entries})
 
     models_nav: list = []
     if models:
@@ -195,3 +221,102 @@ def _order_groups(
     ordered.extend(group for name, group in groups.items() if name not in declared_tags)
     return ordered
 
+
+def _configure_tag_nav(
+    groups: list[TagGroup],
+    *,
+    tag_nav: list[Any] | None,
+    unlisted_tags: str,
+) -> tuple[list[tuple[str | None, list[TagGroup]]], list[TagGroup]]:
+    """Select and arrange tag groups according to the plugin configuration."""
+    policies = {"exclude", "append", "error"}
+    if unlisted_tags not in policies:
+        choices = ", ".join(sorted(policies))
+        raise OpenAPIError(
+            f"unlisted_tags must be one of: {choices}"
+        )
+    if tag_nav is None:
+        return [(None, groups)], groups
+
+    available = {group.name: group for group in groups}
+    configured: set[str] = set()
+    entries: list[tuple[str | None, list[TagGroup]]] = []
+    section_titles: set[str] = set()
+
+    for index, item in enumerate(tag_nav, start=1):
+        if isinstance(item, str):
+            tag_name = item.strip()
+            if not tag_name:
+                raise OpenAPIError(
+                    f"tag_nav item {index} must not be empty"
+                )
+            entries.append(
+                (None, [_configured_group(tag_name, available, configured)])
+            )
+            continue
+
+        if not isinstance(item, Mapping) or len(item) != 1:
+            raise OpenAPIError(
+                f"tag_nav item {index} must be a tag name or a "
+                "single-key section"
+            )
+        raw_title, raw_tags = next(iter(item.items()))
+        title = str(raw_title).strip()
+        if not title:
+            raise OpenAPIError(
+                f"tag_nav section {index} must have a non-empty title"
+            )
+        if title in section_titles:
+            raise OpenAPIError(
+                f"tag_nav section {title!r} is configured more than once"
+            )
+        section_titles.add(title)
+        if not isinstance(raw_tags, list) or not raw_tags:
+            raise OpenAPIError(
+                f"tag_nav section {title!r} must contain a non-empty "
+                "list of tag names"
+            )
+
+        section_groups: list[TagGroup] = []
+        for raw_tag in raw_tags:
+            if not isinstance(raw_tag, str) or not raw_tag.strip():
+                raise OpenAPIError(
+                    f"tag_nav section {title!r} must contain only "
+                    "non-empty tag names"
+                )
+            section_groups.append(
+                _configured_group(raw_tag.strip(), available, configured)
+            )
+        entries.append((title, section_groups))
+
+    remaining = [group for group in groups if group.name not in configured]
+    if unlisted_tags == "error" and remaining:
+        names = ", ".join(group.name for group in remaining)
+        raise OpenAPIError(
+            f"tag_nav does not list these primary operation tags: {names}"
+        )
+    if unlisted_tags == "append" and remaining:
+        entries.append((None, remaining))
+
+    ordered = [
+        group for _, entry_groups in entries for group in entry_groups
+    ]
+    return entries, ordered
+
+
+def _configured_group(
+    tag_name: str,
+    available: dict[str, TagGroup],
+    configured: set[str],
+) -> TagGroup:
+    """Resolve one configured tag and reject unknown or duplicate entries."""
+    if tag_name in configured:
+        raise OpenAPIError(
+            f"tag_nav tag {tag_name!r} is configured more than once"
+        )
+    if tag_name not in available:
+        raise OpenAPIError(
+            f"tag_nav tag {tag_name!r} is not a primary operation tag"
+        )
+    configured.add(tag_name)
+    return available[tag_name]

@@ -1,0 +1,81 @@
+site_name: RingCentral API
+site_description: Large-scale mkdocs-openapi example using the RingCentral API
+site_dir: ../../site-ringcentral
+use_directory_urls: false
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - content.tabs.link
+    - navigation.indexes
+    - navigation.prune
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - tags
+  - openapi:
+      output_dir: api-reference
+      models_dir: models
+      models_title: Models
+      models_in_nav: false
+      tag_nav:
+        - Phone:
+            - Business Hours
+            - Call Blocking
+            - Call Control
+            - Call Forwarding
+            - Call Handling Rules
+            - States
+            - State-based Rules
+            - Interaction Rules
+            - Forwarding Targets
+        - SMS and Fax:
+            - Fax
+            - Message Exports
+            - Message Store
+            - Pager Messages
+            - SMS
+            - High Volume SMS
+      unlisted_tags: append
+
+nav:
+  - Overview: index.md
+  - API Reference: openapi/rc-platform.yml
+
+markdown_extensions:
+  - abbr
+  - footnotes
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+validation:
+  nav:
+    omitted_files: warn
+    absolute_links: warn
+  links:
+    absolute_links: relative_to_docs
+    unrecognized_links: warn

@@ -66,10 +66,38 @@ stable CSS attribute selectors.
 | `models_dir` | `models` | Virtual source directory for component schemas. |
 | `models_title` | `Models` | Navigation title inserted beside the API section. |
 | `models_in_nav` | `true` | Include every model below the Models nav item. Set to `false` for very large schemas. |
+| `tag_nav` | unset | Ordered tag navigation containing root-level tag names or titled groups of tag names. |
+| `unlisted_tags` | `exclude` | Handle primary tags omitted from `tag_nav` with `exclude`, `append`, or `error`. |
 
 The plugin automatically enables the Markdown extensions required by its
 generated output: `admonition`, `attr_list`, `tables`,
 `pymdownx.superfences`, and `pymdownx.tabbed`.
+
+### Tag navigation
+
+`tag_nav` controls which primary OpenAPI tags are rendered, their order, and
+whether they appear below an additional navigation level:
+
+```yaml
+plugins:
+  - openapi:
+      tag_nav:
+        - Phone:
+            - Business Hours
+            - Call Blocking
+            - Call Control
+        - SMS and Fax:
+            - Fax
+            - Message Store
+            - SMS
+      unlisted_tags: exclude
+```
+
+Plain string entries are rendered directly below API Reference. Group mappings
+create an extra navigation level. Set `unlisted_tags` to `append` to add
+unconfigured tags afterward in their default order, or to `error` to require an
+exhaustive configuration. Unknown tags, duplicates, and empty groups fail the
+build. If `tag_nav` is omitted, all tags retain the existing default order.
 
 ## Rendering behavior
 

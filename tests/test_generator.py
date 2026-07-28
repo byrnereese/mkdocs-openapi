@@ -4,6 +4,9 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
+from mkdocs_openapi.errors import OpenAPIError
 from mkdocs_openapi.generator import generate_site
 
 
@@ -61,6 +64,84 @@ def test_generation_is_deterministic() -> None:
     assert first.pages == second.pages
     assert first.api_nav == second.api_nav
     assert first.models_nav == second.models_nav
+
+
+def test_configures_nested_tag_navigation_order_and_filtering() -> None:
+    document = _tagged_document("Alpha", "Beta", "Gamma")
+
+    generated = generate_site(
+        document,
+        tag_nav=[
+            {"Second section": ["Gamma", "Alpha"]},
+            "Beta",
+        ],
+        unlisted_tags="exclude",
+    )
+
+    assert [next(iter(item)) for item in generated.api_nav] == [
+        "Overview",
+        "Second section",
+        "Beta",
+    ]
+    nested = generated.api_nav[1]["Second section"]
+    assert [next(iter(item)) for item in nested] == ["Gamma", "Alpha"]
+    assert [operation.primary_tag for operation in generated.operations] == [
+        "Alpha",
+        "Beta",
+        "Gamma",
+    ]
+
+
+def test_excludes_unlisted_tags_and_their_pages() -> None:
+    generated = generate_site(
+        _tagged_document("Alpha", "Beta"),
+        tag_nav=["Beta"],
+    )
+
+    assert [next(iter(item)) for item in generated.api_nav] == [
+        "Overview",
+        "Beta",
+    ]
+    assert [operation.primary_tag for operation in generated.operations] == [
+        "Beta"
+    ]
+    assert not any("/alpha/" in uri for uri in generated.pages)
+    assert any("/beta/" in uri for uri in generated.pages)
+
+
+def test_appends_unlisted_tags_in_default_order() -> None:
+    generated = generate_site(
+        _tagged_document("Alpha", "Beta", "Gamma"),
+        tag_nav=[{"Featured": ["Gamma"]}],
+        unlisted_tags="append",
+    )
+
+    assert [next(iter(item)) for item in generated.api_nav] == [
+        "Overview",
+        "Featured",
+        "Alpha",
+        "Beta",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("tag_nav", "unlisted_tags", "message"),
+    [
+        (["Missing"], "exclude", "not a primary operation tag"),
+        (["Alpha", {"Again": ["Alpha"]}], "exclude", "more than once"),
+        ([{"Empty": []}], "exclude", "non-empty list"),
+        (["Alpha"], "error", "does not list.*Beta"),
+    ],
+)
+def test_rejects_invalid_tag_navigation(
+    tag_nav: list, unlisted_tags: str, message: str
+) -> None:
+    with pytest.raises(OpenAPIError, match=message):
+        generate_site(
+            _tagged_document("Alpha", "Beta"),
+            tag_nav=tag_nav,
+            unlisted_tags=unlisted_tags,
+        )
 
 
 def test_handles_untagged_missing_ids_duplicates_and_inline_schemas() -> None:
@@ -207,3 +288,22 @@ def test_serializes_yaml_timestamp_examples() -> None:
     assert '"createdAt": "2026-07-28T08:30:00"' in generated.pages[
         "models/event.md"
     ]
+
+
+def _tagged_document(*tag_names: str) -> dict:
+    return {
+        "openapi": "3.0.3",
+        "info": {"title": "Tagged", "version": "1"},
+        "tags": [{"name": name} for name in tag_names],
+        "paths": {
+            f"/{name.lower()}": {
+                "get": {
+                    "tags": [name],
+                    "summary": f"Get {name}",
+                    "operationId": f"get{name}",
+                    "responses": {"200": {"description": "OK"}},
+                }
+            }
+            for name in tag_names
+        },
+    }

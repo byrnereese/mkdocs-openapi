@@ -86,6 +86,10 @@ plugins:
       output_dir: reference
       models_dir: data-models
       models_in_nav: false
+      tag_nav:
+        - Core:
+            - Pets
+      unlisted_tags: error
 nav:
   - Home: index.md
   - API Reference: openapi/spec.yaml
@@ -126,6 +130,8 @@ validation:
     assert not (site / "openapi/spec.yaml").exists()
 
     operation_html = operation.read_text()
+    reference_html = (site / "reference/index.html").read_text()
+    assert "\n    Core\n" in reference_html
     assert 'class="http-method post"' in operation_html
     assert "../../data-models/pet.html" in operation_html
     assert '<span class="md-tag">POST</span>' in operation_html
