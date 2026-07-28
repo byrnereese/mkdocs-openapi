@@ -1,44 +1,90 @@
 # mkdocs-openapi
 
-`mkdocs-openapi` generates predictable API reference pages from an OpenAPI
-document. The plugin creates Markdown pages in memory and hands them back to
-MkDocs, so the active theme, Markdown extensions, search, tags, navigation, and
-link validation all participate in the normal build.
+Generate predictable, native MkDocs API reference pages from an OpenAPI
+document.
 
-## Current status
+`mkdocs-openapi` converts an OpenAPI 3.x JSON or YAML document into Markdown
+pages during the MkDocs build. Because the pages participate in the normal
+MkDocs pipeline, they work with site navigation, search, tags, Markdown
+extensions, link validation, and theme customization.
 
-This is an alpha implementation of the rendering contract demonstrated by the
-Petstore example. It supports local OpenAPI 3.x JSON and YAML documents and one
-specification per MkDocs site.
+> [!IMPORTANT]
+> `mkdocs-openapi` is designed and tested around
+> [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/). Its
+> generated markup and bundled navigation styles take advantage of Material's
+> layout and CSS conventions. Other themes may render the generated Markdown,
+> but are not currently a supported or tested target.
 
-## Install for development
+## Status
+
+This project is currently alpha software. It supports one local OpenAPI 3.x
+document per MkDocs site.
+
+## Requirements
+
+- Python 3.10 or later
+- MkDocs 1.6 or later
+- Material for MkDocs 9.6 or later (recommended and tested theme)
+
+## Installation
+
+Install the plugin and Material for MkDocs:
 
 ```bash
-python -m venv .venv
-. .venv/bin/activate
-python -m pip install -e '.[test]'
+python -m pip install mkdocs-openapi mkdocs-material
 ```
 
-## Configure
+If you already have a Material for MkDocs project, install only the plugin:
 
-Place the specification under `docs_dir` and reference it directly from `nav`:
+```bash
+python -m pip install mkdocs-openapi
+```
+
+Confirm that MkDocs can discover the plugin:
+
+```bash
+mkdocs get-deps
+```
+
+## Quick start
+
+Place your OpenAPI document under the MkDocs `docs_dir`. With the default
+`docs/` directory, a minimal project might look like this:
+
+```text
+.
+├── docs
+│   ├── index.md
+│   └── openapi
+│       └── spec.yaml
+└── mkdocs.yml
+```
+
+Enable the plugin in `mkdocs.yml`, then reference the OpenAPI document directly
+from `nav`:
 
 ```yaml
+site_name: My API
+
+theme:
+  name: material
+
 plugins:
   - search
-  - tags
-  - openapi:
-      output_dir: api-reference
+  - openapi
 
 nav:
-  - Homepage: index.md
+  - Home: index.md
   - API Reference: openapi/spec.yaml
 ```
 
-The source specification is consumed by the plugin and removed from the files
-published to `site/`.
+Build or preview the site normally:
 
-The single nav entry is expanded into:
+```bash
+mkdocs serve
+```
+
+The OpenAPI nav entry is replaced with generated API pages:
 
 ```text
 API Reference
@@ -54,24 +100,64 @@ Models
 └── One page per component schema
 ```
 
-The method labels shown above are CSS pseudo-elements. MkDocs nav labels remain
-plain operation names, while generated filenames expose the HTTP method to
-stable CSS attribute selectors.
+The source specification is consumed during the build and is not copied into
+the published site.
+
+## Material for MkDocs integration
+
+The plugin automatically:
+
+- adds its bundled `mkdocs-openapi.css` stylesheet;
+- enables `admonition`, `attr_list`, `tables`, `pymdownx.superfences`, and
+  `pymdownx.tabbed`;
+- enables the alternate tab style used by Material;
+- generates native Markdown pages that participate in Material search, tags,
+  navigation, and table-of-contents behavior; and
+- displays HTTP method badges in Material's primary navigation.
+
+The method badge colors can be customized with CSS variables:
+
+```css
+:root {
+  --api-method-get-color: #61affe;
+  --api-method-post-color: #49cc90;
+  --api-method-put-color: #fca130;
+  --api-method-delete-color: #f93e3e;
+  --api-method-text-color: #ffffff;
+}
+```
+
+Add your override after the plugin stylesheet using the normal MkDocs
+`extra_css` setting:
+
+```yaml
+extra_css:
+  - stylesheets/extra.css
+```
 
 ## Configuration
+
+Plugin options are configured below the `openapi` entry:
+
+```yaml
+plugins:
+  - search
+  - tags
+  - openapi:
+      output_dir: api-reference
+      models_dir: models
+      models_title: Models
+      models_in_nav: true
+```
 
 | Option | Default | Description |
 | --- | --- | --- |
 | `output_dir` | `api-reference` | Virtual source directory for API and operation pages. |
-| `models_dir` | `models` | Virtual source directory for component schemas. |
+| `models_dir` | `models` | Virtual source directory for component schema pages. |
 | `models_title` | `Models` | Navigation title inserted beside the API section. |
 | `models_in_nav` | `true` | Include every model below the Models nav item. Set to `false` for very large schemas. |
 | `tag_nav` | unset | Ordered tag navigation containing root-level tag names or titled groups of tag names. |
 | `unlisted_tags` | `exclude` | Handle primary tags omitted from `tag_nav` with `exclude`, `append`, or `error`. |
-
-The plugin automatically enables the Markdown extensions required by its
-generated output: `admonition`, `attr_list`, `tables`,
-`pymdownx.superfences`, and `pymdownx.tabbed`.
 
 ### Tag navigation
 
@@ -93,64 +179,54 @@ plugins:
       unlisted_tags: exclude
 ```
 
-Plain string entries are rendered directly below API Reference. Group mappings
-create an extra navigation level. Set `unlisted_tags` to `append` to add
-unconfigured tags afterward in their default order, or to `error` to require an
-exhaustive configuration. Unknown tags, duplicates, and empty groups fail the
-build. If `tag_nav` is omitted, all tags retain the existing default order.
+Plain string entries are rendered directly below the API Reference section.
+Group mappings create an additional navigation level.
+
+Set `unlisted_tags` to:
+
+- `exclude` to omit tags not listed in `tag_nav`;
+- `append` to add unlisted tags after the configured tags; or
+- `error` to require an exhaustive tag configuration.
+
+Unknown tags, duplicates, and empty groups fail the build. If `tag_nav` is
+omitted, all tags retain their default order.
 
 ## Rendering behavior
 
-- Each operation is generated as an in-memory Markdown page.
 - Operations are grouped by their first OpenAPI tag.
-- An operation with no tags is placed under `Untagged`.
+- Operations without tags are placed under `Untagged`.
 - Additional operation tags are retained as page metadata for Material's tags
   plugin.
-- Each `components.schemas` entry is generated as a model page.
-- Local schema `$ref` values link to model pages.
-- Truly inline schemas remain inline in the operation documentation.
+- Each `components.schemas` entry generates a model page.
+- Local schema `$ref` values link to generated model pages.
+- Inline schemas remain inline in operation documentation.
 - Operation and model slugs are deterministic, with numeric suffixes for
   collisions.
-- The bundled stylesheet can be overridden with CSS custom properties such as
-  `--api-method-get-color` and `--api-method-text-color`.
 
-## Known first-version boundaries
+## Current limitations
 
-- OpenAPI 3.x is supported; Swagger/OpenAPI 2.0 is rejected.
-- One specification can be referenced per MkDocs site.
+- Swagger/OpenAPI 2.0 documents are rejected.
+- Only one OpenAPI document is supported per MkDocs site.
 - External `$ref` documents are not resolved.
-- Callbacks and webhooks are not yet rendered as operations.
+- Callbacks and webhooks are not rendered as operations.
 - The first tag is the canonical navigation group for a multi-tag operation.
+- Themes other than Material for MkDocs are not currently tested or supported.
 
-## Petstore example
+## Examples
 
-The example at [`examples/petstore`](examples/petstore) builds directly from a
-pinned Petstore specification:
+### Petstore
+
+The Petstore example demonstrates the standard rendering contract:
 
 ```bash
 .venv/bin/python examples/petstore/verify.py
 .venv/bin/mkdocs build --strict -f examples/petstore/mkdocs.yml
 ```
 
-The previous hand-authored design pages are retained under
-`examples/petstore/reference` for comparison. They are not part of the MkDocs
-build.
+### RingCentral
 
-## Plugin documentation site
-
-The primary project website is configured at the repository root. It includes
-the plugin documentation and a generated Petstore example nested under the
-Example site navigation:
-
-```bash
-.venv/bin/mkdocs serve
-.venv/bin/mkdocs build --strict
-```
-
-## RingCentral stress example
-
-The standalone [`examples/ringcentral`](examples/ringcentral) site exercises the
-plugin with 517 operations and 1,481 reusable models:
+The RingCentral example stress-tests the plugin with 517 operations and 1,481
+reusable models:
 
 ```bash
 .venv/bin/python examples/ringcentral/verify.py
@@ -159,12 +235,35 @@ plugin with 517 operations and 1,481 reusable models:
 
 Its output is written to `site-ringcentral/`.
 
-## Tests
+## Development
+
+Clone the repository and install it in editable mode with test dependencies:
 
 ```bash
-.venv/bin/pytest
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -e '.[test]'
 ```
 
-The test suite covers JSON and YAML parsing, generated paths and navigation,
-schema links, inline schemas, missing tags and operation IDs, duplicate slugs,
-composed models, deterministic output, and a real strict MkDocs Material build.
+Run the test suite:
+
+```bash
+pytest
+```
+
+Build the project documentation:
+
+```bash
+mkdocs build --strict
+```
+
+Or preview it locally:
+
+```bash
+mkdocs serve
+```
+
+## License
+
+`mkdocs-openapi` is distributed under the MIT License. See
+[`LICENSE`](LICENSE) for details.

@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "mkdocs-openapi"
 version = "0.1.0"
 description = "Generate predictable MkDocs API reference pages from OpenAPI specifications"
+keywords = ["mkdocs", "openapi", "documentation"]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -53,3 +54,8 @@ include = [
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+
+[project.urls]
+Homepage = "https://github.com/byrnereese/mkdocs-openapi"
+Repository = "https://github.com/byrnereese/mkdocs-openapi"
+Issues = "https://github.com/byrnereese/mkdocs-openapi/issues"
