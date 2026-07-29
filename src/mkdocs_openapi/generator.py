@@ -30,6 +30,7 @@ def generate_site(
     *,
     output_dir: str = "api-reference",
     models_dir: str = "models",
+    suppress_tag_overview: bool = False,
     tag_nav: list[Any] | None = None,
     unlisted_tags: str = "exclude",
 ) -> GeneratedSite:
@@ -166,7 +167,9 @@ def generate_site(
     tag_children: dict[str, list] = {}
     for group in ordered_groups:
         pages[group.source_uri] = renderer.render_tag_overview(group)
-        children: list = [{"Overview": group.source_uri}]
+        children: list = []
+        if not suppress_tag_overview:
+            children.append({"Overview": group.source_uri})
         for operation in group.operations:
             pages[operation.source_uri] = renderer.render_operation(operation)
             children.append({operation.title: operation.source_uri})

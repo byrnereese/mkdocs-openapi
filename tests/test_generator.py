@@ -66,6 +66,23 @@ def test_generation_is_deterministic() -> None:
     assert first.models_nav == second.models_nav
 
 
+def test_suppresses_tag_overviews_from_navigation_only() -> None:
+    generated = generate_site(
+        _tagged_document("Alpha", "Beta"),
+        suppress_tag_overview=True,
+    )
+
+    for item in generated.api_nav[1:]:
+        children = next(iter(item.values()))
+        assert [next(iter(child)) for child in children] == [
+            f"Get {next(iter(item))}"
+        ]
+
+    assert "Overview" in generated.api_nav[0]
+    assert "api-reference/alpha/index.md" in generated.pages
+    assert "api-reference/beta/index.md" in generated.pages
+
+
 def test_configures_nested_tag_navigation_order_and_filtering() -> None:
     document = _tagged_document("Alpha", "Beta", "Gamma")
 

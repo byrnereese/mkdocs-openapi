@@ -142,6 +142,8 @@ plugins:
       output_dir: reference
       models_dir: data-models
       models_in_nav: false
+      suppress_tag_overview: true
+      suppress_method_badges: true
       tag_nav:
         - Core:
             - Pets
@@ -188,6 +190,7 @@ validation:
     operation_html = operation.read_text()
     reference_html = (site / "reference/index.html").read_text()
     assert "\n    Core\n" in reference_html
+    assert ">Overview</a>" not in reference_html
     assert 'class="http-method post"' in operation_html
     assert "../../data-models/pet.html" in operation_html
     assert '<span class="md-tag">POST</span>' in operation_html
@@ -199,6 +202,8 @@ validation:
     assert "--api-method-text-color: #ffffff" in css
     assert ".md-typeset code.http-method" in css
     assert "flex: 0 0 2.35rem" in css
+    assert "Hide HTTP method badges" in css
+    assert "display: none" in css
 
     # Generated Markdown is virtual: the plugin never writes into docs_dir.
     assert sorted(path.relative_to(docs).as_posix() for path in docs.rglob("*") if path.is_file()) == [

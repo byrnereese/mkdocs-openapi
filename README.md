@@ -183,6 +183,8 @@ plugins:
       models_dir: models
       models_title: Models
       models_in_nav: true
+      suppress_tag_overview: false
+      suppress_method_badges: false
 ```
 
 | Option | Default | Description |
@@ -191,6 +193,8 @@ plugins:
 | `models_dir` | `models` | Virtual source directory for component schema pages. |
 | `models_title` | `Models` | Navigation title inserted beside the API section. |
 | `models_in_nav` | `true` | Include every model below the Models nav item. Set to `false` for very large schemas. |
+| `suppress_tag_overview` | `false` | Omit each tag's Overview link from generated navigation. The overview pages are still generated. |
+| `suppress_method_badges` | `false` | Hide HTTP method badges in Material's primary navigation. |
 | `tag_nav` | unset | Ordered tag navigation containing root-level tag names or titled groups of tag names. |
 | `unlisted_tags` | `exclude` | Handle primary tags omitted from `tag_nav` with `exclude`, `append`, or `error`. |
 | `specs` | unset | Mapping of specification IDs to multi-spec source, output, and optional per-spec overrides. |
@@ -204,6 +208,7 @@ When `specs` is set, each entry accepts:
 | `models_dir` | `<output_dir>/models` | Unique virtual source directory for this API's schemas. |
 | `models_title` | global value | Navigation title for this API's schemas. |
 | `models_in_nav` | global value | Whether every schema is included in navigation. |
+| `suppress_tag_overview` | global value | Whether tag Overview links are omitted for this API. |
 | `tag_nav` | global value | Tag navigation for this API. |
 | `unlisted_tags` | global value | Handling of primary tags omitted from this API's `tag_nav`. |
 

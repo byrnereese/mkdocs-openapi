@@ -2,6 +2,15 @@
 
 All notable changes to `mkdocs-openapi` are documented here.
 
+## 0.2.2 — 2026-07-29
+
+### Added
+
+- A `suppress_tag_overview` option for omitting tag overview links from
+  generated navigation while continuing to generate the overview pages.
+- A `suppress_method_badges` option for hiding HTTP method badges in Material's
+  primary navigation.
+
 ## 0.2.1 — 2026-07-29
 
 ### Fixed

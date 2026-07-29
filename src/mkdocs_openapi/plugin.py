@@ -30,6 +30,16 @@ REQUIRED_MARKDOWN_EXTENSIONS = (
     "pymdownx.superfences",
     "pymdownx.tabbed",
 )
+SUPPRESS_METHOD_BADGES_CSS = """
+
+/* Hide HTTP method badges in generated primary navigation. */
+.md-nav--primary .md-nav__link[href*="operation-"]::before,
+.md-nav--primary
+  .md-nav__item--active:has(> a[href*="operation-"])
+  > label.md-nav__link::before {
+  display: none;
+}
+"""
 
 
 class OpenAPISpecConfig(base.Config):
@@ -40,6 +50,7 @@ class OpenAPISpecConfig(base.Config):
     models_dir = c.Optional(c.Type(str))
     models_title = c.Optional(c.Type(str))
     models_in_nav = c.Optional(c.Type(bool))
+    suppress_tag_overview = c.Optional(c.Type(bool))
     tag_nav = c.Optional(c.Type(list))
     unlisted_tags = c.Optional(c.Choice(("exclude", "append", "error")))
 
@@ -51,6 +62,8 @@ class OpenAPIPluginConfig(base.Config):
     models_dir = c.Type(str, default="models")
     models_title = c.Type(str, default="Models")
     models_in_nav = c.Type(bool, default=True)
+    suppress_tag_overview = c.Type(bool, default=False)
+    suppress_method_badges = c.Type(bool, default=False)
     tag_nav = c.Optional(c.Type(list))
     unlisted_tags = c.Choice(
         ("exclude", "append", "error"), default="exclude"
@@ -68,6 +81,7 @@ class _ResolvedSpec:
     models_dir: str
     models_title: str
     models_in_nav: bool
+    suppress_tag_overview: bool
     tag_nav: list[Any] | None
     unlisted_tags: str
 
@@ -147,6 +161,7 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                     document,
                     output_dir=spec.output_dir,
                     models_dir=spec.models_dir,
+                    suppress_tag_overview=spec.suppress_tag_overview,
                     tag_nav=spec.tag_nav,
                     unlisted_tags=spec.unlisted_tags,
                 )
@@ -192,11 +207,24 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
             model_page_uris = {
                 model.source_uri for model in generated.models
             }
+            tag_overview_uris = {
+                (
+                    PurePosixPath(operation.source_uri).parent
+                    / "index.md"
+                ).as_posix()
+                for operation in generated.operations
+            }
             for source_uri, content in generated.pages.items():
                 inclusion = (
                     InclusionLevel.NOT_IN_NAV
-                    if not spec.models_in_nav
-                    and source_uri in model_page_uris
+                    if (
+                        not spec.models_in_nav
+                        and source_uri in model_page_uris
+                    )
+                    or (
+                        spec.suppress_tag_overview
+                        and source_uri in tag_overview_uris
+                    )
                     else InclusionLevel.UNDEFINED
                 )
                 files.append(
@@ -214,6 +242,8 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                 .joinpath("mkdocs-openapi.css")
                 .read_text(encoding="utf-8")
             )
+            if self.config.suppress_method_badges:
+                css += SUPPRESS_METHOD_BADGES_CSS
             files.append(File.generated(config, ASSET_URI, content=css))
 
         replacements = {
@@ -290,6 +320,11 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                         if raw.models_in_nav is not None
                         else self.config.models_in_nav
                     ),
+                    suppress_tag_overview=(
+                        raw.suppress_tag_overview
+                        if raw.suppress_tag_overview is not None
+                        else self.config.suppress_tag_overview
+                    ),
                     tag_nav=(
                         raw.tag_nav
                         if raw.tag_nav is not None
@@ -323,6 +358,7 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                     models_dir=self.config.models_dir,
                     models_title=self.config.models_title,
                     models_in_nav=self.config.models_in_nav,
+                    suppress_tag_overview=self.config.suppress_tag_overview,
                     tag_nav=self.config.tag_nav,
                     unlisted_tags=self.config.unlisted_tags,
                 ),

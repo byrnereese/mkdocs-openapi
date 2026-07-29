@@ -66,6 +66,8 @@ operation page includes its OpenAPI tags and HTTP method as page metadata.
 | `models_dir` | `models` | Virtual source directory for component-schema pages. |
 | `models_title` | `Models` | Navigation title inserted beside the generated API section. |
 | `models_in_nav` | `true` | Include every model in navigation. Set to `false` to link only the Models index. |
+| `suppress_tag_overview` | `false` | Omit tag Overview links from navigation while retaining the generated pages. |
+| `suppress_method_badges` | `false` | Hide HTTP method badges in Material's primary navigation. |
 | `tag_nav` | unset | Ordered tag navigation. Entries may be tag names or titled sections containing tag names. |
 | `unlisted_tags` | `exclude` | Behavior for primary operation tags omitted from `tag_nav`: `exclude`, `append`, or `error`. |
 | `specs` | unset | Mapping of specification IDs to multi-spec configuration. |
@@ -107,10 +109,11 @@ Every spec entry requires:
 - a unique `output_dir`.
 
 `models_dir` defaults to `<output_dir>/models`. `models_title`,
-`models_in_nav`, `tag_nav`, and `unlisted_tags` inherit their top-level values
-and can be overridden per specification. The plugin validates all generated
-paths before adding any virtual files, so output collisions fail the build
-with the owning specification IDs.
+`models_in_nav`, `suppress_tag_overview`, `tag_nav`, and `unlisted_tags`
+inherit their top-level values and can be overridden per specification.
+`suppress_method_badges` applies to the whole site. The plugin validates all
+generated paths before adding any virtual files, so output collisions fail the
+build with the owning specification IDs.
 
 ### Select, order, and group tags
 
