@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from importlib.resources import files as package_files
 from pathlib import PurePosixPath
 from typing import Any
+from urllib.parse import urlsplit
 
 from mkdocs import plugins
 from mkdocs.config import base, config_options as c
@@ -359,7 +360,13 @@ def _find_spec_uris(nav: list) -> list[str]:
             continue
         for value in item.values():
             if isinstance(value, str):
-                if PurePosixPath(value).suffix.lower() in SPEC_SUFFIXES:
+                parsed = urlsplit(value)
+                is_external = bool(parsed.scheme or parsed.netloc)
+                if (
+                    not is_external
+                    and PurePosixPath(parsed.path).suffix.lower()
+                    in SPEC_SUFFIXES
+                ):
                     found.append(value)
             elif isinstance(value, list):
                 found.extend(_find_spec_uris(value))

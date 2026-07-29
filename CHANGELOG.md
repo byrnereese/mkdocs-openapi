@@ -2,6 +2,13 @@
 
 All notable changes to `mkdocs-openapi` are documented here.
 
+## 0.2.1 — 2026-07-29
+
+### Fixed
+
+- External navigation links ending in `.json`, `.yaml`, or `.yml` are no
+  longer mistaken for local OpenAPI specifications.
+
 ## 0.2.0 — 2026-07-29
 
 ### Added

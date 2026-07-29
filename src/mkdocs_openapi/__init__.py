@@ -3,4 +3,4 @@
 from .plugin import OpenAPIPlugin
 
 __all__ = ["OpenAPIPlugin"]
-__version__ = "0.2.0"
+__version__ = "0.2.1"

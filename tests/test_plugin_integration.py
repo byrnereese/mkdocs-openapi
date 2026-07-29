@@ -305,6 +305,69 @@ validation:
     assert "Order models" in home_html
 
 
+def test_mkdocs_ignores_external_spec_like_nav_links(
+    tmp_path: Path,
+) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "index.md").write_text("# Home\n")
+    _write_spec(
+        docs / "openapi/pets.yaml",
+        title="Pets API",
+        tag="Pets",
+        model="Pet",
+        route="/pets",
+    )
+
+    external_manifest = (
+        "https://github.com/example/repository/blob/main/manifest.json"
+    )
+    config = tmp_path / "mkdocs.yml"
+    config.write_text(
+        f"""
+site_name: API with external manifest
+docs_dir: docs
+site_dir: site
+use_directory_urls: false
+plugins:
+  - openapi:
+      specs:
+        pets:
+          source: openapi/pets.yaml
+          output_dir: references/pets
+nav:
+  - Home: index.md
+  - Pets: openapi/pets.yaml
+  - Sample manifest: {external_manifest}
+""".strip()
+        + "\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mkdocs",
+            "build",
+            "--strict",
+            "--config-file",
+            str(config),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    site = tmp_path / "site"
+    assert (
+        site / "references/pets/pets/operation-get-list-pets.html"
+    ).is_file()
+    home_html = (site / "index.html").read_text()
+    assert f'href="{external_manifest}"' in home_html
+    assert "Sample manifest" in home_html
+
+
 def test_multi_spec_rejects_shared_generated_directory(
     tmp_path: Path,
 ) -> None:
