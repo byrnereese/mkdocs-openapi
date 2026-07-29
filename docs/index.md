@@ -74,10 +74,11 @@ method badges while exposing their colors as CSS custom properties.
 
 ## Current scope
 
-The first release supports:
+The current release supports:
 
 - OpenAPI 3.x
 - JSON and YAML specifications
+- Multiple specifications with isolated output directories
 - Local component-schema `$ref` values
 - Parameters, request bodies, responses, security requirements, and examples
 - Inline and composed schemas
@@ -85,9 +86,7 @@ The first release supports:
 
 Current boundaries:
 
-- One specification per MkDocs site
 - External `$ref` documents are not yet resolved
 - Swagger/OpenAPI 2.0 is not supported
 - Callbacks and webhooks are not yet rendered as operations
 - The first tag is the canonical navigation group for a multi-tag operation
-

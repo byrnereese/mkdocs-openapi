@@ -7,6 +7,62 @@ from pathlib import Path
 import yaml
 
 
+def _write_spec(
+    path: Path,
+    *,
+    title: str,
+    tag: str,
+    model: str,
+    route: str,
+) -> None:
+    """Write a small OpenAPI document with one operation and model."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "openapi": "3.0.3",
+                "info": {"title": title, "version": "1.0.0"},
+                "tags": [{"name": tag}],
+                "paths": {
+                    route: {
+                        "get": {
+                            "tags": [tag],
+                            "summary": f"List {tag.lower()}",
+                            "operationId": f"list{tag}",
+                            "responses": {
+                                "200": {
+                                    "description": "Success",
+                                    "content": {
+                                        "application/json": {
+                                            "schema": {
+                                                "$ref": (
+                                                    "#/components/schemas/"
+                                                    f"{model}"
+                                                )
+                                            }
+                                        }
+                                    },
+                                }
+                            },
+                        }
+                    }
+                },
+                "components": {
+                    "schemas": {
+                        model: {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"}
+                            },
+                        }
+                    }
+                },
+            },
+            sort_keys=False,
+        )
+    )
+
+
 def test_mkdocs_builds_generated_markdown_with_material(tmp_path: Path) -> None:
     docs = tmp_path / "docs"
     spec_dir = docs / "openapi"
@@ -149,3 +205,220 @@ validation:
         "index.md",
         "openapi/spec.yaml",
     ]
+
+
+def test_mkdocs_builds_multiple_specifications(tmp_path: Path) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "index.md").write_text("# Home\n")
+    _write_spec(
+        docs / "openapi/pets.yaml",
+        title="Pets API",
+        tag="Pets",
+        model="Pet",
+        route="/pets",
+    )
+    _write_spec(
+        docs / "openapi/orders.yaml",
+        title="Orders API",
+        tag="Orders",
+        model="Order",
+        route="/orders",
+    )
+
+    config = tmp_path / "mkdocs.yml"
+    config.write_text(
+        """
+site_name: Multiple APIs
+docs_dir: docs
+site_dir: site
+use_directory_urls: false
+theme:
+  name: material
+  features:
+    - navigation.indexes
+plugins:
+  - search
+  - openapi:
+      specs:
+        pets:
+          source: openapi/pets.yaml
+          output_dir: references/pets
+          models_in_nav: false
+        orders:
+          source: openapi/orders.yaml
+          output_dir: references/orders
+          models_dir: schemas/orders
+          models_title: Order models
+nav:
+  - Home: index.md
+  - APIs:
+      - Pets API: openapi/pets.yaml
+      - Orders API: openapi/orders.yaml
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    unrecognized_links: warn
+""".strip()
+        + "\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mkdocs",
+            "build",
+            "--strict",
+            "--config-file",
+            str(config),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    site = tmp_path / "site"
+    pets_operation = (
+        site / "references/pets/pets/operation-get-list-pets.html"
+    )
+    orders_operation = (
+        site / "references/orders/orders/operation-get-list-orders.html"
+    )
+    assert pets_operation.is_file()
+    assert orders_operation.is_file()
+    assert (site / "references/pets/models/pet.html").is_file()
+    assert (site / "schemas/orders/order.html").is_file()
+    assert not (site / "openapi/pets.yaml").exists()
+    assert not (site / "openapi/orders.yaml").exists()
+
+    pets_html = pets_operation.read_text()
+    orders_html = orders_operation.read_text()
+    assert 'href="../models/pet.html"' in pets_html
+    assert "../../../schemas/orders/order.html" in orders_html
+
+    home_html = (site / "index.html").read_text()
+    assert "Pets API" in home_html
+    assert "Orders API" in home_html
+    assert "Order models" in home_html
+
+
+def test_multi_spec_rejects_shared_generated_directory(
+    tmp_path: Path,
+) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    _write_spec(
+        docs / "openapi/pets.yaml",
+        title="Pets API",
+        tag="Pets",
+        model="Pet",
+        route="/pets",
+    )
+    _write_spec(
+        docs / "openapi/orders.yaml",
+        title="Orders API",
+        tag="Orders",
+        model="Order",
+        route="/orders",
+    )
+    config = tmp_path / "mkdocs.yml"
+    config.write_text(
+        """
+site_name: Multiple APIs
+docs_dir: docs
+site_dir: site
+plugins:
+  - openapi:
+      specs:
+        pets:
+          source: openapi/pets.yaml
+          output_dir: reference
+        orders:
+          source: openapi/orders.yaml
+          output_dir: reference
+nav:
+  - Pets: openapi/pets.yaml
+  - Orders: openapi/orders.yaml
+""".strip()
+        + "\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mkdocs",
+            "build",
+            "--config-file",
+            str(config),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert (
+        "specifications 'pets' and 'orders' use the same generated "
+        "directory 'reference'"
+    ) in result.stderr
+
+
+def test_multi_spec_requires_every_nav_spec_to_be_registered(
+    tmp_path: Path,
+) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    _write_spec(
+        docs / "openapi/pets.yaml",
+        title="Pets API",
+        tag="Pets",
+        model="Pet",
+        route="/pets",
+    )
+    _write_spec(
+        docs / "openapi/orders.yaml",
+        title="Orders API",
+        tag="Orders",
+        model="Order",
+        route="/orders",
+    )
+    config = tmp_path / "mkdocs.yml"
+    config.write_text(
+        """
+site_name: Multiple APIs
+docs_dir: docs
+site_dir: site
+plugins:
+  - openapi:
+      specs:
+        pets:
+          source: openapi/pets.yaml
+          output_dir: references/pets
+nav:
+  - Pets: openapi/pets.yaml
+  - Orders: openapi/orders.yaml
+""".strip()
+        + "\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mkdocs",
+            "build",
+            "--config-file",
+            str(config),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert (
+        "nav contains specifications not registered under specs: "
+        "openapi/orders.yaml"
+    ) in result.stderr

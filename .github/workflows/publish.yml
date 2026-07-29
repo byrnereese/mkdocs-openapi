@@ -26,6 +26,36 @@ jobs:
           python -m pip install ".[test]"
           python -m pytest
 
+      - name: Verify release version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+
+          import mkdocs_openapi
+
+          with open("pyproject.toml", "rb") as project_file:
+              project_version = tomllib.load(project_file)["project"]["version"]
+
+          package_version = mkdocs_openapi.__version__
+          release_tag = os.environ["RELEASE_TAG"]
+          expected_tag = f"v{project_version}"
+
+          if package_version != project_version:
+              raise SystemExit(
+                  "Package version does not match pyproject.toml: "
+                  f"{package_version!r} != {project_version!r}"
+              )
+          if release_tag != expected_tag:
+              raise SystemExit(
+                  f"Release tag {release_tag!r} must be {expected_tag!r}"
+              )
+
+          print(f"Validated release {release_tag}")
+          PY
+
       - name: Build distributions
         run: python -m build
 

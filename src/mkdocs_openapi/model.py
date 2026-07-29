@@ -49,11 +49,10 @@ class ModelPage:
 
 @dataclass
 class GeneratedSite:
-    """All virtual pages and navigation produced for one specification."""
+    """All virtual pages and navigation produced for a specification."""
 
     pages: dict[str, str]
     api_nav: list
     models_nav: list
     operations: list[Operation]
     models: list[ModelPage]
-

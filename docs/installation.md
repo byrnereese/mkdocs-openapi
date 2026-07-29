@@ -68,9 +68,49 @@ operation page includes its OpenAPI tags and HTTP method as page metadata.
 | `models_in_nav` | `true` | Include every model in navigation. Set to `false` to link only the Models index. |
 | `tag_nav` | unset | Ordered tag navigation. Entries may be tag names or titled sections containing tag names. |
 | `unlisted_tags` | `exclude` | Behavior for primary operation tags omitted from `tag_nav`: `exclude`, `append`, or `error`. |
+| `specs` | unset | Mapping of specification IDs to multi-spec configuration. |
 
 All configured directories must be relative paths and must differ from one
 another.
+
+### Configure multiple specifications
+
+Sites with more than one OpenAPI document use an explicit `specs` mapping:
+
+```yaml
+plugins:
+  - search
+  - openapi:
+      models_in_nav: false
+      specs:
+        pets:
+          source: openapi/pets.yaml
+          output_dir: api-reference/pets
+        orders:
+          source: openapi/orders.yaml
+          output_dir: api-reference/orders
+          models_dir: api-reference/orders/models
+          models_title: Order models
+          models_in_nav: true
+
+nav:
+  - Homepage: index.md
+  - APIs:
+      - Pets: openapi/pets.yaml
+      - Orders: openapi/orders.yaml
+```
+
+Every spec entry requires:
+
+- a unique ID, such as `pets`;
+- a `source` path below `docs_dir` that appears in `nav` exactly once; and
+- a unique `output_dir`.
+
+`models_dir` defaults to `<output_dir>/models`. `models_title`,
+`models_in_nav`, `tag_nav`, and `unlisted_tags` inherit their top-level values
+and can be overridden per specification. The plugin validates all generated
+paths before adding any virtual files, so output collisions fail the build
+with the owning specification IDs.
 
 ### Select, order, and group tags
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mkdocs-openapi"
-version = "0.1.0"
+version = "0.2.0"
 description = "Generate predictable MkDocs API reference pages from OpenAPI specifications"
 keywords = ["mkdocs", "openapi", "documentation"]
 readme = "README.md"
@@ -47,6 +47,7 @@ include = [
   "/src",
   "/tests",
   "/examples",
+  "/CHANGELOG.md",
   "/README.md",
   "/pyproject.toml",
 ]

@@ -17,8 +17,10 @@ extensions, link validation, and theme customization.
 
 ## Status
 
-This project is currently alpha software. It supports one local OpenAPI 3.x
-document per MkDocs site.
+This project is currently alpha software. It supports one or more local
+OpenAPI 3.x documents per MkDocs site.
+
+See the [changelog](CHANGELOG.md) for release history.
 
 ## Requirements
 
@@ -103,6 +105,39 @@ Models
 The source specification is consumed during the build and is not copied into
 the published site.
 
+## Multiple specifications
+
+Use `specs` when a site contains more than one OpenAPI document. Each entry
+has a stable ID, a source path matching its `nav` entry, and an isolated output
+directory:
+
+```yaml
+plugins:
+  - search
+  - openapi:
+      specs:
+        pets:
+          source: openapi/pets.yaml
+          output_dir: api-reference/pets
+        orders:
+          source: openapi/orders.yaml
+          output_dir: api-reference/orders
+          models_dir: api-reference/orders/models
+          models_title: Order models
+
+nav:
+  - Home: index.md
+  - APIs:
+      - Pets: openapi/pets.yaml
+      - Orders: openapi/orders.yaml
+```
+
+`source` and `output_dir` are required for every entry. `models_dir` defaults
+to `<output_dir>/models`. The remaining rendering and navigation options may
+be set globally and overridden for an individual specification. Every
+configured source must appear in `nav` exactly once, and every OpenAPI document
+in `nav` must be registered under `specs`.
+
 ## Material for MkDocs integration
 
 The plugin automatically:
@@ -158,6 +193,19 @@ plugins:
 | `models_in_nav` | `true` | Include every model below the Models nav item. Set to `false` for very large schemas. |
 | `tag_nav` | unset | Ordered tag navigation containing root-level tag names or titled groups of tag names. |
 | `unlisted_tags` | `exclude` | Handle primary tags omitted from `tag_nav` with `exclude`, `append`, or `error`. |
+| `specs` | unset | Mapping of specification IDs to multi-spec source, output, and optional per-spec overrides. |
+
+When `specs` is set, each entry accepts:
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `source` | required | OpenAPI file below `docs_dir`; must match an entry in `nav`. |
+| `output_dir` | required | Unique virtual source directory for this API. |
+| `models_dir` | `<output_dir>/models` | Unique virtual source directory for this API's schemas. |
+| `models_title` | global value | Navigation title for this API's schemas. |
+| `models_in_nav` | global value | Whether every schema is included in navigation. |
+| `tag_nav` | global value | Tag navigation for this API. |
+| `unlisted_tags` | global value | Handling of primary tags omitted from this API's `tag_nav`. |
 
 ### Tag navigation
 
@@ -206,7 +254,6 @@ omitted, all tags retain their default order.
 ## Current limitations
 
 - Swagger/OpenAPI 2.0 documents are rejected.
-- Only one OpenAPI document is supported per MkDocs site.
 - External `$ref` documents are not resolved.
 - Callbacks and webhooks are not rendered as operations.
 - The first tag is the canonical navigation group for a multi-tag operation.
@@ -221,6 +268,14 @@ The Petstore example demonstrates the standard rendering contract:
 ```bash
 .venv/bin/python examples/petstore/verify.py
 .venv/bin/mkdocs build --strict -f examples/petstore/mkdocs.yml
+```
+
+### Multiple APIs
+
+The multiple-API example generates two isolated references in one build:
+
+```bash
+.venv/bin/mkdocs build --strict -f examples/multiple/mkdocs.yml
 ```
 
 ### RingCentral
