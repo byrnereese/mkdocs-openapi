@@ -66,14 +66,15 @@ operation page includes its OpenAPI tags and HTTP method as page metadata.
 | `models_dir` | `models` | Virtual source directory for component-schema pages. |
 | `models_title` | `Models` | Navigation title inserted beside the generated API section. |
 | `models_in_nav` | `true` | Include every model in navigation. Set to `false` to link only the Models index. |
+| `models_mode` | `pages` | Use `pages` for standalone model pages or `inline` to render reachable models on each operation page. |
 | `suppress_tag_overview` | `false` | Omit tag Overview links from navigation while retaining the generated pages. |
 | `suppress_method_badges` | `false` | Hide HTTP method badges in Material's primary navigation. |
 | `tag_nav` | unset | Ordered tag navigation. Entries may be tag names or titled sections containing tag names. |
 | `unlisted_tags` | `exclude` | Behavior for primary operation tags omitted from `tag_nav`: `exclude`, `append`, or `error`. |
 | `specs` | unset | Mapping of specification IDs to multi-spec configuration. |
 
-All configured directories must be relative paths and must differ from one
-another.
+All configured directories must be relative paths. Directories that generate
+pages must differ from one another.
 
 ### Configure multiple specifications
 
@@ -109,11 +110,26 @@ Every spec entry requires:
 - a unique `output_dir`.
 
 `models_dir` defaults to `<output_dir>/models`. `models_title`,
-`models_in_nav`, `suppress_tag_overview`, `tag_nav`, and `unlisted_tags`
-inherit their top-level values and can be overridden per specification.
+`models_in_nav`, `models_mode`, `suppress_tag_overview`, `tag_nav`, and
+`unlisted_tags` inherit their top-level values and can be overridden per
+specification.
 `suppress_method_badges` applies to the whole site. The plugin validates all
 generated paths before adding any virtual files, so output collisions fail the
 build with the owning specification IDs.
+
+### Render models inline
+
+Set `models_mode: inline` to render every model reachable from an operation on
+that operation's page. Nested references are included once, and recursive
+references link back to the model already present on the page. Unreferenced
+models, the Models index, standalone model pages, and model navigation are not
+generated.
+
+```yaml
+plugins:
+  - openapi:
+      models_mode: inline
+```
 
 ### Select, order, and group tags
 

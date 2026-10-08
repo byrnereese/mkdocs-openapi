@@ -30,11 +30,14 @@ def generate_site(
     *,
     output_dir: str = "api-reference",
     models_dir: str = "models",
+    models_mode: str = "pages",
     suppress_tag_overview: bool = False,
     tag_nav: list[Any] | None = None,
     unlisted_tags: str = "exclude",
 ) -> GeneratedSite:
     """Generate Markdown pages and MkDocs navigation for an OpenAPI document."""
+    if models_mode not in {"pages", "inline"}:
+        raise OpenAPIError("models_mode must be one of: inline, pages")
     output_dir = output_dir.strip("/")
     models_dir = models_dir.strip("/")
 
@@ -158,6 +161,7 @@ def generate_site(
         models_dir=models_dir,
         groups=ordered_groups,
         models=models,
+        models_mode=models_mode,
     )
     pages: dict[str, str] = {
         f"{output_dir}/index.md": renderer.render_api_overview()
@@ -186,7 +190,7 @@ def generate_site(
             api_nav.append({section: entries})
 
     models_nav: list = []
-    if models:
+    if models and models_mode == "pages":
         models_index_uri = f"{models_dir}/index.md"
         pages[models_index_uri] = renderer.render_models_overview()
         models_nav.append({"Overview": models_index_uri})

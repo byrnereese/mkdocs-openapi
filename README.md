@@ -105,6 +105,16 @@ Models
 The source specification is consumed during the build and is not copied into
 the published site.
 
+To avoid standalone model files, set `models_mode: inline`. Every model
+reachable from an operation, including nested dependencies, is then rendered
+on that operation's page. Model pages and model navigation are not generated.
+
+```yaml
+plugins:
+  - openapi:
+      models_mode: inline
+```
+
 ## Multiple specifications
 
 Use `specs` when a site contains more than one OpenAPI document. Each entry
@@ -183,6 +193,7 @@ plugins:
       models_dir: models
       models_title: Models
       models_in_nav: true
+      models_mode: pages
       suppress_tag_overview: false
       suppress_method_badges: false
 ```
@@ -193,6 +204,7 @@ plugins:
 | `models_dir` | `models` | Virtual source directory for component schema pages. |
 | `models_title` | `Models` | Navigation title inserted beside the API section. |
 | `models_in_nav` | `true` | Include every model below the Models nav item. Set to `false` for very large schemas. |
+| `models_mode` | `pages` | Use `pages` for standalone model pages or `inline` to render reachable models on each operation page. |
 | `suppress_tag_overview` | `false` | Omit each tag's Overview link from generated navigation. The overview pages are still generated. |
 | `suppress_method_badges` | `false` | Hide HTTP method badges in Material's primary navigation. |
 | `tag_nav` | unset | Ordered tag navigation containing root-level tag names or titled groups of tag names. |
@@ -205,9 +217,10 @@ When `specs` is set, each entry accepts:
 | --- | --- | --- |
 | `source` | required | OpenAPI file below `docs_dir`; must match an entry in `nav`. |
 | `output_dir` | required | Unique virtual source directory for this API. |
-| `models_dir` | `<output_dir>/models` | Unique virtual source directory for this API's schemas. |
+| `models_dir` | `<output_dir>/models` | Unique virtual source directory for this API's schemas when `models_mode` is `pages`. |
 | `models_title` | global value | Navigation title for this API's schemas. |
 | `models_in_nav` | global value | Whether every schema is included in navigation. |
+| `models_mode` | global value | Whether models use standalone `pages` or render `inline` on operation pages. |
 | `suppress_tag_overview` | global value | Whether tag Overview links are omitted for this API. |
 | `tag_nav` | global value | Tag navigation for this API. |
 | `unlisted_tags` | global value | Handling of primary tags omitted from this API's `tag_nav`. |
@@ -250,8 +263,10 @@ omitted, all tags retain their default order.
 - Operations without tags are placed under `Untagged`.
 - Additional operation tags are retained as page metadata for Material's tags
   plugin.
-- Each `components.schemas` entry generates a model page.
-- Local schema `$ref` values link to generated model pages.
+- In `pages` mode, each `components.schemas` entry generates a model page and
+  local schema `$ref` values link to it.
+- In `inline` mode, each operation includes its reachable component schemas and
+  local schema `$ref` values link to those sections.
 - Inline schemas remain inline in operation documentation.
 - Operation and model slugs are deterministic, with numeric suffixes for
   collisions.

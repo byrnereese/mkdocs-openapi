@@ -50,6 +50,7 @@ class OpenAPISpecConfig(base.Config):
     models_dir = c.Optional(c.Type(str))
     models_title = c.Optional(c.Type(str))
     models_in_nav = c.Optional(c.Type(bool))
+    models_mode = c.Optional(c.Choice(("pages", "inline")))
     suppress_tag_overview = c.Optional(c.Type(bool))
     tag_nav = c.Optional(c.Type(list))
     unlisted_tags = c.Optional(c.Choice(("exclude", "append", "error")))
@@ -62,6 +63,7 @@ class OpenAPIPluginConfig(base.Config):
     models_dir = c.Type(str, default="models")
     models_title = c.Type(str, default="Models")
     models_in_nav = c.Type(bool, default=True)
+    models_mode = c.Choice(("pages", "inline"), default="pages")
     suppress_tag_overview = c.Type(bool, default=False)
     suppress_method_badges = c.Type(bool, default=False)
     tag_nav = c.Optional(c.Type(list))
@@ -81,6 +83,7 @@ class _ResolvedSpec:
     models_dir: str
     models_title: str
     models_in_nav: bool
+    models_mode: str
     suppress_tag_overview: bool
     tag_nav: list[Any] | None
     unlisted_tags: str
@@ -101,7 +104,7 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
         """Validate paths and register the bundled stylesheet."""
         output_dir = _clean_relative_dir(self.config.output_dir, "output_dir")
         models_dir = _clean_relative_dir(self.config.models_dir, "models_dir")
-        if output_dir == models_dir:
+        if self.config.models_mode == "pages" and output_dir == models_dir:
             raise PluginError("openapi: output_dir and models_dir must differ")
         self.config.output_dir = output_dir
         self.config.models_dir = models_dir
@@ -161,6 +164,7 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                     document,
                     output_dir=spec.output_dir,
                     models_dir=spec.models_dir,
+                    models_mode=spec.models_mode,
                     suppress_tag_overview=spec.suppress_tag_overview,
                     tag_nav=spec.tag_nav,
                     unlisted_tags=spec.unlisted_tags,
@@ -280,7 +284,8 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                 raw.models_dir or f"{output_dir}/models",
                 f"specs.{spec_id}.models_dir",
             )
-            if output_dir == models_dir:
+            models_mode = raw.models_mode or self.config.models_mode
+            if models_mode == "pages" and output_dir == models_dir:
                 raise PluginError(
                     f"openapi: specs.{spec_id}.output_dir and models_dir "
                     "must differ"
@@ -294,7 +299,10 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                 )
             source_owners[source] = spec_id
 
-            for directory in (output_dir, models_dir):
+            generated_directories = [output_dir]
+            if models_mode == "pages":
+                generated_directories.append(models_dir)
+            for directory in generated_directories:
                 previous_directory = directory_owners.get(directory)
                 if previous_directory is not None:
                     raise PluginError(
@@ -320,6 +328,7 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                         if raw.models_in_nav is not None
                         else self.config.models_in_nav
                     ),
+                    models_mode=models_mode,
                     suppress_tag_overview=(
                         raw.suppress_tag_overview
                         if raw.suppress_tag_overview is not None
@@ -358,6 +367,7 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                     models_dir=self.config.models_dir,
                     models_title=self.config.models_title,
                     models_in_nav=self.config.models_in_nav,
+                    models_mode=self.config.models_mode,
                     suppress_tag_overview=self.config.suppress_tag_overview,
                     tag_nav=self.config.tag_nav,
                     unlisted_tags=self.config.unlisted_tags,

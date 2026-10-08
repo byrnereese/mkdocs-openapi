@@ -66,6 +66,84 @@ def test_generation_is_deterministic() -> None:
     assert first.models_nav == second.models_nav
 
 
+def test_inlines_reachable_models_without_generating_model_pages() -> None:
+    document = {
+        "openapi": "3.0.3",
+        "info": {"title": "Inline models", "version": "1"},
+        "paths": {
+            "/nodes": {
+                "post": {
+                    "summary": "Create a node",
+                    "requestBody": {
+                        "$ref": "#/components/requestBodies/NodeBody"
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/Node"
+                                    }
+                                }
+                            },
+                        }
+                    },
+                }
+            }
+        },
+        "components": {
+            "requestBodies": {
+                "NodeBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Node"
+                            }
+                        }
+                    }
+                }
+            },
+            "schemas": {
+                "Node": {
+                    "type": "object",
+                    "required": ["child"],
+                    "properties": {
+                        "child": {"$ref": "#/components/schemas/Child"}
+                    },
+                },
+                "Child": {
+                    "type": "object",
+                    "properties": {
+                        "parent": {"$ref": "#/components/schemas/Node"}
+                    },
+                },
+                "Unused": {"type": "string"},
+            },
+        },
+    }
+
+    generated = generate_site(document, models_mode="inline")
+    operation = generated.pages[
+        "api-reference/untagged/operation-post-create-a-node.md"
+    ]
+
+    assert generated.models_nav == []
+    assert not any(uri.startswith("models/") for uri in generated.pages)
+    assert "model reference" not in generated.pages["api-reference/index.md"]
+    assert "**Schema:** [Node](#model-node)" in operation
+    assert operation.count("### Node { #model-node }") == 1
+    assert operation.count("### Child { #model-child }") == 1
+    assert "[Child](#model-child)" in operation
+    assert "[Node](#model-node)" in operation
+    assert "Unused" not in operation
+
+
+def test_rejects_invalid_models_mode() -> None:
+    with pytest.raises(OpenAPIError, match="models_mode must be one of"):
+        generate_site(petstore(), models_mode="separate")
+
+
 def test_suppresses_tag_overviews_from_navigation_only() -> None:
     generated = generate_site(
         _tagged_document("Alpha", "Beta"),

@@ -24,12 +24,14 @@ class MarkdownRenderer:
         models_dir: str,
         groups: list[TagGroup],
         models: list[ModelPage],
+        models_mode: str = "pages",
     ) -> None:
         self.document = document
         self.output_dir = output_dir
         self.models_dir = models_dir
         self.groups = groups
         self.models = models
+        self.models_mode = models_mode
         self.models_by_name = {model.name: model for model in models}
         self.security_schemes = (
             document.get("components", {}).get("securitySchemes", {})
@@ -104,7 +106,7 @@ class MarkdownRenderer:
                     ]
                 )
 
-        if self.models:
+        if self.models and self.models_mode == "pages":
             models_uri = f"{self.models_dir}/index.md"
             link = self._link(
                 "model reference", f"{self.output_dir}/index.md", models_uri
@@ -242,6 +244,20 @@ class MarkdownRenderer:
                 ]
             )
 
+        if self.models_mode == "inline":
+            inline_models = self._models_for_operation(operation)
+            if inline_models:
+                lines.extend(["## Models", ""])
+                for model in inline_models:
+                    lines.extend(
+                        self._render_model_content(
+                            model,
+                            operation.source_uri,
+                            heading_level=3,
+                            anchor=f"model-{model.slug}",
+                        )
+                    )
+
         return self._finish(lines)
 
     def render_models_overview(self) -> str:
@@ -267,20 +283,47 @@ class MarkdownRenderer:
 
     def render_model(self, model: ModelPage) -> str:
         """Render one reusable component schema."""
+        lines = [self._frontmatter(["Model"])]
+        lines.extend(
+            self._render_model_content(
+                model, model.source_uri, heading_level=1
+            )
+        )
+        return self._finish(lines)
+
+    def _render_model_content(
+        self,
+        model: ModelPage,
+        source_uri: str,
+        *,
+        heading_level: int,
+        anchor: str | None = None,
+    ) -> list[str]:
+        """Render a model for a standalone page or an operation section."""
         schema = model.schema
-        lines = [self._frontmatter(["Model"]), f"# {model.name}", ""]
+        heading = f"{'#' * heading_level} {model.name}"
+        if anchor:
+            heading += f" {{ #{anchor} }}"
+        lines = [heading, ""]
         if schema.get("description"):
             lines.extend([str(schema["description"]).strip(), ""])
 
-        composition = self._composition(schema, model.source_uri)
+        composition = self._composition(schema, source_uri)
         if composition:
-            lines.extend(["## Composition", "", composition, ""])
+            lines.extend(
+                [
+                    f"{'#' * (heading_level + 1)} Composition",
+                    "",
+                    composition,
+                    "",
+                ]
+            )
 
         properties, required = self._model_properties(schema)
         if properties:
             lines.extend(
                 [
-                    "## Properties",
+                    f"{'#' * (heading_level + 1)} Properties",
                     "",
                     "| Property | Type | Required | Description |",
                     "| --- | --- | --- | --- |",
@@ -293,7 +336,7 @@ class MarkdownRenderer:
                 details = self._schema_details(property_schema)
                 lines.append(
                     f"| `{self._table(name)}` "
-                    f"| {self._table(self._schema_type(property_schema, model.source_uri))} "
+                    f"| {self._table(self._schema_type(property_schema, source_uri))} "
                     f"| {'**Yes**' if name in required else 'No'} "
                     f"| {self._table(details) or '—'} |"
                 )
@@ -301,9 +344,9 @@ class MarkdownRenderer:
         else:
             lines.extend(
                 [
-                    "## Type",
+                    f"{'#' * (heading_level + 1)} Type",
                     "",
-                    self._schema_type(schema, model.source_uri),
+                    self._schema_type(schema, source_uri),
                     "",
                 ]
             )
@@ -312,7 +355,7 @@ class MarkdownRenderer:
         if example is not None:
             lines.extend(
                 [
-                    "## Example",
+                    f"{'#' * (heading_level + 1)} Example",
                     "",
                     "```json",
                     self._json_dump(example),
@@ -320,7 +363,44 @@ class MarkdownRenderer:
                     "",
                 ]
             )
-        return self._finish(lines)
+        return lines
+
+    def _models_for_operation(self, operation: Operation) -> list[ModelPage]:
+        """Return every component schema reachable from an operation once."""
+        found: list[ModelPage] = []
+        seen_models: set[str] = set()
+        seen_refs: set[str] = set()
+
+        def visit(value: object) -> None:
+            if isinstance(value, Mapping):
+                ref = value.get("$ref")
+                if isinstance(ref, str) and ref.startswith(
+                    "#/components/schemas/"
+                ):
+                    name = self._model_name_from_ref(ref)
+                    model = self.models_by_name.get(name)
+                    if model is not None and name not in seen_models:
+                        seen_models.add(name)
+                        found.append(model)
+                        visit(model.schema)
+                    return
+                if isinstance(ref, str) and ref.startswith("#/"):
+                    if ref in seen_refs:
+                        return
+                    seen_refs.add(ref)
+                    visit(resolve_local_ref(self.document, value))
+                    return
+                for child in value.values():
+                    visit(child)
+            elif isinstance(value, Sequence) and not isinstance(
+                value, (str, bytes)
+            ):
+                for child in value:
+                    visit(child)
+
+        visit(operation.path_parameters)
+        visit(operation.data)
+        return found
 
     def _render_request_body(self, body: Mapping, source_uri: str) -> list[str]:
         lines = ["## Request body", ""]
@@ -419,9 +499,11 @@ class MarkdownRenderer:
             return "any"
         ref = raw_schema.get("$ref")
         if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
-            name = ref.removeprefix("#/components/schemas/")
+            name = self._model_name_from_ref(ref)
             model = self.models_by_name.get(name)
             if model:
+                if self.models_mode == "inline":
+                    return f"[{name}](#model-{model.slug})"
                 return self._link(name, source_uri, model.source_uri)
             return name
         if isinstance(ref, str):
@@ -468,6 +550,15 @@ class MarkdownRenderer:
         if raw_schema.get("nullable"):
             rendered += " or null"
         return rendered
+
+    @staticmethod
+    def _model_name_from_ref(ref: str) -> str:
+        """Decode a component name from a local JSON Pointer reference."""
+        return (
+            ref.removeprefix("#/components/schemas/")
+            .replace("~1", "/")
+            .replace("~0", "~")
+        )
 
     def _schema_details(self, schema: Mapping) -> str:
         parts: list[str] = []

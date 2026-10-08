@@ -15,8 +15,8 @@ theme remain responsible for converting those pages into HTML.
 - An API overview page
 - One navigation section for each OpenAPI tag
 - One page for each operation
-- One page for each reusable component schema
-- Links from schema `$ref` values to their model pages
+- Reusable component schemas as standalone pages or inline operation sections
+- Links from schema `$ref` values to the corresponding model documentation
 - Material tag metadata for operation tags and HTTP methods
 - Hierarchical navigation with compact method badges
 

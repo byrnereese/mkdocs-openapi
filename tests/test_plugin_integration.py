@@ -212,6 +212,67 @@ validation:
     ]
 
 
+def test_mkdocs_builds_models_inline_on_operation_pages(
+    tmp_path: Path,
+) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "index.md").write_text("# Home\n")
+    _write_spec(
+        docs / "openapi/pets.yaml",
+        title="Pets API",
+        tag="Pets",
+        model="Pet",
+        route="/pets",
+    )
+    config = tmp_path / "mkdocs.yml"
+    config.write_text(
+        """
+site_name: Inline Models
+docs_dir: docs
+site_dir: site
+use_directory_urls: false
+theme:
+  name: material
+plugins:
+  - openapi:
+      models_mode: inline
+nav:
+  - Home: index.md
+  - API Reference: openapi/pets.yaml
+validation:
+  links:
+    unrecognized_links: warn
+""".strip()
+        + "\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mkdocs",
+            "build",
+            "--strict",
+            "--config-file",
+            str(config),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    site = tmp_path / "site"
+    operation = site / "api-reference/pets/operation-get-list-pets.html"
+    assert operation.is_file()
+    assert not (site / "models").exists()
+    operation_html = operation.read_text()
+    assert 'href="#model-pet"' in operation_html
+    assert 'id="model-pet"' in operation_html
+    assert "Properties" in operation_html
+
+
 def test_mkdocs_builds_multiple_specifications(tmp_path: Path) -> None:
     docs = tmp_path / "docs"
     docs.mkdir()

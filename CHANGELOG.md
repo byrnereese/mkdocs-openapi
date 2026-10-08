@@ -2,6 +2,14 @@
 
 All notable changes to `mkdocs-openapi` are documented here.
 
+## 0.3.0 — 2026-10-07
+
+### Added
+
+- A `models_mode: inline` option that renders each operation's reachable model
+  graph on the operation page without generating standalone model pages or
+  model navigation.
+
 ## 0.2.2 — 2026-07-29
 
 ### Added
