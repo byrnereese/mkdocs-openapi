@@ -153,9 +153,10 @@ in `nav` must be registered under `specs`.
 The plugin automatically:
 
 - adds its bundled `mkdocs-openapi.css` stylesheet;
+- adds its bundled interaction script for URL copying and page actions;
 - enables `admonition`, `attr_list`, `tables`, `pymdownx.superfences`, and
   `pymdownx.tabbed`;
-- enables the alternate tab style used by Material;
+- uses the site's configured Material/PyMdown tab style;
 - generates native Markdown pages that participate in Material search, tags,
   navigation, and table-of-contents behavior; and
 - displays HTTP method badges in Material's primary navigation.
@@ -263,6 +264,15 @@ omitted, all tags retain their default order.
 - Operations without tags are placed under `Untagged`.
 - Additional operation tags are retained as page metadata for Material's tags
   plugin.
+- Operations marked with `deprecated: true` display a Material warning
+  admonition.
+- Operation pages show a scrollable endpoint bar with a URL copy control.
+- Path, query, header, and cookie parameters render in separate sections, with
+  request bodies in their own section.
+- Responses render in status-code tabs and expand response schemas inline
+  without linking them to standalone model pages.
+- Generated pages provide actions to copy their Markdown or view the Markdown
+  source in a new browser tab.
 - In `pages` mode, each `components.schemas` entry generates a model page and
   local schema `$ref` values link to it.
 - In `inline` mode, each operation includes its reachable component schemas and

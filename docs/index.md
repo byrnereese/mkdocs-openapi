@@ -68,9 +68,10 @@ they do for authored documentation.
 
 ### Optimized for Material
 
-The generated Markdown uses tables, content tabs, admonitions, fenced code
-blocks, page metadata, and attribute lists. A small bundled stylesheet supplies
-method badges while exposing their colors as CSS custom properties.
+The generated pages use inline parameter details, response content tabs,
+admonitions, fenced code blocks, page metadata, and attribute lists. Bundled
+styles and interactions provide method badges, scrollable endpoint URLs, copy
+controls, and Markdown page actions.
 
 ## Current scope
 

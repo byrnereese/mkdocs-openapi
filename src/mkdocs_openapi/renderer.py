@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import posixpath
+import re
+from html import escape
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -42,7 +44,9 @@ class MarkdownRenderer:
         info = self.document.get("info", {})
         title = str(info.get("title") or "API reference")
         lines = [f"# {title}", ""]
-        description = str(info.get("description", "")).strip()
+        description = self._normalize_markdown_lists(
+            info.get("description", "")
+        )
         if description:
             lines.extend([description, ""])
 
@@ -122,6 +126,27 @@ class MarkdownRenderer:
 
         return self._finish(lines)
 
+    @staticmethod
+    def _normalize_markdown_lists(value: Any) -> str:
+        """Separate list blocks from preceding prose in API descriptions."""
+        text = str(value).strip()
+        if not text:
+            return ""
+
+        lines = text.splitlines()
+        normalized: list[str] = []
+        list_item = re.compile(r"^\s*(?:[-+*]|\d+[.)])\s+")
+        for line in lines:
+            if (
+                list_item.match(line)
+                and normalized
+                and normalized[-1].strip()
+                and not list_item.match(normalized[-1])
+            ):
+                normalized.append("")
+            normalized.append(line)
+        return "\n".join(normalized)
+
     def render_tag_overview(self, group: TagGroup) -> str:
         """Render a tag landing page with links to its operations."""
         lines = [self._frontmatter([group.name]), f"# {group.name}", ""]
@@ -141,11 +166,16 @@ class MarkdownRenderer:
         """Render a single operation page."""
         tags = list(dict.fromkeys([*operation.tags, operation.method]))
         lines = [
-            self._frontmatter(tags),
+            self._frontmatter(
+                tags,
+                metadata={
+                    "openapi_operation": {
+                        "method": operation.method,
+                        "endpoint": self._endpoint_url(operation),
+                    }
+                },
+            ),
             f"# {operation.title}",
-            "",
-            f"{self._method_badge(operation.method)} "
-            f"`{operation.path}`{{ .operation-path }}",
             "",
         ]
 
@@ -174,37 +204,10 @@ class MarkdownRenderer:
         parameters = self._operation_parameters(operation)
         if parameters:
             lines.extend(
-                [
-                    "## Parameters",
-                    "",
-                    "| Name | Location | Type | Required | Description |",
-                    "| --- | --- | --- | --- | --- |",
-                ]
+                self._render_parameter_sections(
+                    parameters, operation.source_uri
+                )
             )
-            for parameter in parameters:
-                schema = parameter.get("schema", {})
-                if not schema and isinstance(parameter.get("content"), Mapping):
-                    first_media = next(iter(parameter["content"].values()), {})
-                    schema = first_media.get("schema", {})
-                required = bool(
-                    parameter.get("required") or parameter.get("in") == "path"
-                )
-                lines.append(
-                    "| `{name}` | {location} | {type_} | {required} | "
-                    "{description} |".format(
-                        name=self._table(parameter.get("name", "")),
-                        location=self._table(parameter.get("in", "")),
-                        type_=self._table(
-                            self._schema_type(schema, operation.source_uri)
-                        ),
-                        required="**Yes**" if required else "No",
-                        description=self._table(
-                            parameter.get("description", "")
-                        )
-                        or "—",
-                    )
-                )
-            lines.append("")
 
         raw_body = operation.data.get("requestBody")
         body = resolve_local_ref(self.document, raw_body)
@@ -213,24 +216,17 @@ class MarkdownRenderer:
 
         responses = operation.data.get("responses", {})
         if isinstance(responses, Mapping) and responses:
-            lines.extend(
-                [
-                    "## Responses",
-                    "",
-                    "| Status | Description | Body |",
-                    "| --- | --- | --- |",
-                ]
-            )
+            lines.extend(["## Responses", ""])
             for status, raw_response in responses.items():
                 response = resolve_local_ref(self.document, raw_response)
                 if not isinstance(response, Mapping):
                     continue
-                lines.append(
-                    f"| `{self._table(status)}` "
-                    f"| {self._table(response.get('description', '')) or '—'} "
-                    f"| {self._response_body(response, operation.source_uri)} |"
+                lines.extend([f'=== "{status}"', ""])
+                rendered = self._render_response(
+                    response, operation.source_uri
                 )
-            lines.append("")
+                lines.extend(self._indent(rendered, 4))
+                lines.append("")
 
         external_docs = operation.data.get("externalDocs")
         if isinstance(external_docs, Mapping) and external_docs.get("url"):
@@ -399,8 +395,216 @@ class MarkdownRenderer:
                     visit(child)
 
         visit(operation.path_parameters)
-        visit(operation.data)
+        visit(
+            {
+                key: value
+                for key, value in operation.data.items()
+                if key != "responses"
+            }
+        )
         return found
+
+    @staticmethod
+    def _endpoint_url(operation: Operation) -> str:
+        """Return the complete displayed URL for an operation."""
+        endpoint = operation.path
+        if operation.server_url:
+            endpoint = (
+                operation.server_url.rstrip("/")
+                + "/"
+                + operation.path.lstrip("/")
+            )
+        return endpoint
+
+    def _render_parameter_sections(
+        self, parameters: list[Mapping], source_uri: str
+    ) -> list[str]:
+        """Render each OpenAPI parameter location as its own section."""
+        grouped: dict[str, list[Mapping]] = {}
+        for parameter in parameters:
+            location = str(parameter.get("in") or "other").lower()
+            grouped.setdefault(location, []).append(parameter)
+
+        titles = {
+            "path": "Path parameters",
+            "query": "Query parameters",
+            "header": "Header parameters",
+            "cookie": "Cookie parameters",
+            "other": "Parameters",
+        }
+        order = ["path", "query", "header", "cookie", "other"]
+        order.extend(location for location in grouped if location not in order)
+
+        lines: list[str] = []
+        for location in order:
+            location_parameters = grouped.get(location)
+            if not location_parameters:
+                continue
+            title = titles.get(location, f"{location.title()} parameters")
+            lines.extend(
+                [
+                    f"## {title}",
+                    "",
+                ]
+            )
+            for parameter in location_parameters:
+                schema = parameter.get("schema", {})
+                if not schema and isinstance(parameter.get("content"), Mapping):
+                    first_media = next(iter(parameter["content"].values()), {})
+                    schema = first_media.get("schema", {})
+                required = bool(
+                    parameter.get("required") or location == "path"
+                )
+                description = str(parameter.get("description", "")).strip()
+                schema_details = self._schema_details(
+                    schema if isinstance(schema, Mapping) else {}
+                )
+                if schema_details and schema_details != description:
+                    description = " ".join(
+                        item for item in (description, schema_details) if item
+                    )
+                parameter_lines = [
+                    '<div class="api-parameter">',
+                    '  <div class="api-parameter__meta">',
+                    '    <code class="api-parameter__name">'
+                    f"{escape(str(parameter.get('name', '')))}</code>",
+                    '    <code class="api-parameter__type">'
+                    + escape(
+                        self._schema_type(
+                            schema,
+                            source_uri,
+                            link_models=False,
+                        )
+                    )
+                    + "</code>",
+                ]
+                if required:
+                    parameter_lines.append(
+                        '    <span class="api-parameter__required">'
+                        "required</span>"
+                    )
+                parameter_lines.extend(
+                    [
+                        "  </div>",
+                        '  <div class="api-parameter__description">'
+                        f"{escape(description) if description else '—'}</div>",
+                        "</div>",
+                        "",
+                    ]
+                )
+                lines.extend(parameter_lines)
+        return lines
+
+    def _render_response(
+        self, response: Mapping, source_uri: str
+    ) -> list[str]:
+        """Render one response inside its status-code tab."""
+        lines: list[str] = []
+        description = str(response.get("description", "")).strip()
+        if description:
+            lines.extend([description, ""])
+
+        content = response.get("content", {})
+        if not isinstance(content, Mapping) or not content:
+            return lines or ["No response body.", ""]
+
+        for media_type, raw_media in content.items():
+            media = raw_media if isinstance(raw_media, Mapping) else {}
+            lines.extend([f"**Content type:** `{media_type}`", ""])
+            schema = media.get("schema", {})
+            if schema:
+                lines.extend(
+                    self._render_response_schema(schema, source_uri)
+                )
+
+            example = self._media_example(media, schema)
+            if example is not None and self._is_json_media_type(str(media_type)):
+                lines.extend(
+                    [
+                        "**Example**",
+                        "",
+                        "```json",
+                        self._json_dump(example),
+                        "```",
+                        "",
+                    ]
+                )
+            elif example is not None and isinstance(example, str):
+                lines.extend(
+                    ["**Example**", "", "```text", example, "```", ""]
+                )
+        return lines
+
+    def _render_response_schema(
+        self, raw_schema: object, source_uri: str
+    ) -> list[str]:
+        """Render response schema details inline without model links."""
+        lines = [
+            "**Schema:** "
+            + self._schema_type(
+                raw_schema, source_uri, link_models=False
+            ),
+            "",
+        ]
+        schema = self._schema_shape(raw_schema)
+        if not isinstance(schema, Mapping):
+            return lines
+
+        composition = self._composition(
+            schema, source_uri, link_models=False
+        )
+        if composition:
+            lines.extend([composition, ""])
+
+        properties, required = self._model_properties(schema)
+        if not properties:
+            return lines
+        lines.extend(
+            [
+                "**Properties**",
+                "",
+                "| Property | Type | Required | Description |",
+                "| --- | --- | --- | --- |",
+            ]
+        )
+        for name, raw_property in properties.items():
+            property_schema = (
+                raw_property if isinstance(raw_property, Mapping) else {}
+            )
+            property_type = self._schema_type(
+                property_schema,
+                source_uri,
+                link_models=False,
+            )
+            lines.append(
+                f"| `{self._table(name)}` "
+                f"| {self._table(property_type)} "
+                f"| {'**Yes**' if name in required else 'No'} "
+                f"| {self._table(self._schema_details(property_schema)) or '—'} |"
+            )
+        lines.append("")
+        return lines
+
+    def _schema_shape(self, raw_schema: object) -> object:
+        """Resolve the schema whose properties should be shown inline."""
+        schema = raw_schema
+        seen_refs: set[str] = set()
+        while isinstance(schema, Mapping):
+            ref = schema.get("$ref")
+            if isinstance(ref, str) and ref.startswith("#/"):
+                if ref in seen_refs:
+                    return schema
+                seen_refs.add(ref)
+                resolved = resolve_local_ref(self.document, dict(schema))
+                if resolved is schema:
+                    return schema
+                schema = resolved
+                continue
+            if schema.get("type") == "array":
+                schema = schema.get("items", {})
+                continue
+            return schema
+        return schema
 
     def _render_request_body(self, body: Mapping, source_uri: str) -> list[str]:
         lines = ["## Request body", ""]
@@ -478,23 +682,13 @@ class MarkdownRenderer:
             combined[key] = parameter
         return list(combined.values())
 
-    def _response_body(self, response: Mapping, source_uri: str) -> str:
-        content = response.get("content", {})
-        if not isinstance(content, Mapping) or not content:
-            return "—"
-        types: list[str] = []
-        for media in content.values():
-            if not isinstance(media, Mapping):
-                continue
-            schema = media.get("schema")
-            rendered = (
-                self._schema_type(schema, source_uri) if schema else "content"
-            )
-            if rendered not in types:
-                types.append(rendered)
-        return ", ".join(types) or "—"
-
-    def _schema_type(self, raw_schema: object, source_uri: str) -> str:
+    def _schema_type(
+        self,
+        raw_schema: object,
+        source_uri: str,
+        *,
+        link_models: bool = True,
+    ) -> str:
         if not isinstance(raw_schema, Mapping):
             return "any"
         ref = raw_schema.get("$ref")
@@ -502,6 +696,8 @@ class MarkdownRenderer:
             name = self._model_name_from_ref(ref)
             model = self.models_by_name.get(name)
             if model:
+                if not link_models:
+                    return name
                 if self.models_mode == "inline":
                     return f"[{name}](#model-{model.slug})"
                 return self._link(name, source_uri, model.source_uri)
@@ -519,7 +715,12 @@ class MarkdownRenderer:
                 choices, (str, bytes)
             ):
                 rendered = [
-                    self._schema_type(choice, source_uri) for choice in choices
+                    self._schema_type(
+                        choice,
+                        source_uri,
+                        link_models=link_models,
+                    )
+                    for choice in choices
                 ]
                 return f"{label}: " + ", ".join(rendered)
 
@@ -529,13 +730,21 @@ class MarkdownRenderer:
         if schema_type == "array":
             return (
                 "array of "
-                + self._schema_type(raw_schema.get("items", {}), source_uri)
+                + self._schema_type(
+                    raw_schema.get("items", {}),
+                    source_uri,
+                    link_models=link_models,
+                )
             )
         if schema_type == "object" and raw_schema.get("additionalProperties"):
             additional = raw_schema["additionalProperties"]
             if additional is True:
                 return "object of any"
-            return "object of " + self._schema_type(additional, source_uri)
+            return "object of " + self._schema_type(
+                additional,
+                source_uri,
+                link_models=link_models,
+            )
         if not schema_type:
             if raw_schema.get("properties"):
                 schema_type = "object"
@@ -582,18 +791,44 @@ class MarkdownRenderer:
         return " ".join(parts)
 
     def _model_properties(
-        self, schema: Mapping
+        self,
+        schema: Mapping,
+        *,
+        seen_refs: frozenset[str] = frozenset(),
     ) -> tuple[dict[str, object], set[str]]:
         properties = dict(schema.get("properties", {}))
         required = set(schema.get("required", []))
         for member in schema.get("allOf", []):
-            if not isinstance(member, Mapping) or "$ref" in member:
+            if not isinstance(member, Mapping):
                 continue
-            properties.update(member.get("properties", {}))
-            required.update(member.get("required", []))
+            ref = member.get("$ref")
+            if isinstance(ref, str) and ref.startswith("#/"):
+                if ref in seen_refs:
+                    continue
+                resolved = resolve_local_ref(self.document, dict(member))
+                if isinstance(resolved, Mapping):
+                    inherited, inherited_required = self._model_properties(
+                        resolved,
+                        seen_refs=seen_refs | {ref},
+                    )
+                    properties.update(inherited)
+                    required.update(inherited_required)
+                continue
+            nested, nested_required = self._model_properties(
+                member,
+                seen_refs=seen_refs,
+            )
+            properties.update(nested)
+            required.update(nested_required)
         return properties, required
 
-    def _composition(self, schema: Mapping, source_uri: str) -> str:
+    def _composition(
+        self,
+        schema: Mapping,
+        source_uri: str,
+        *,
+        link_models: bool = True,
+    ) -> str:
         for keyword, label in (
             ("allOf", "All of"),
             ("oneOf", "One of"),
@@ -604,7 +839,12 @@ class MarkdownRenderer:
                 members, (str, bytes)
             ):
                 return f"**{label}:** " + ", ".join(
-                    self._schema_type(member, source_uri) for member in members
+                    self._schema_type(
+                        member,
+                        source_uri,
+                        link_models=link_models,
+                    )
+                    for member in members
                 )
         return ""
 
@@ -765,20 +1005,34 @@ class MarkdownRenderer:
 
     def _method_badge(self, method: str) -> str:
         lower = method.lower()
-        return f"`{method.upper()}`{{ .http-method .{lower} }}"
+        return f"`{self._method_label(method)}`{{ .http-method .{lower} }}"
+
+    @staticmethod
+    def _method_label(method: str) -> str:
+        """Return the compact label used by HTTP method pills."""
+        upper = method.upper()
+        return "DEL" if upper == "DELETE" else upper
 
     def _link(self, label: str, from_uri: str, to_uri: str) -> str:
         base = posixpath.dirname(from_uri) or "."
         target = posixpath.relpath(to_uri, base)
         return f"[{label}]({target})"
 
-    def _frontmatter(self, tags: list[str]) -> str:
-        data = yaml.safe_dump(
-            {"tags": tags},
+    def _frontmatter(
+        self,
+        tags: list[str],
+        *,
+        metadata: Mapping[str, object] | None = None,
+    ) -> str:
+        data: dict[str, object] = {"tags": tags}
+        if metadata:
+            data.update(metadata)
+        rendered = yaml.safe_dump(
+            data,
             sort_keys=False,
             allow_unicode=True,
         ).strip()
-        return f"---\n{data}\n---"
+        return f"---\n{rendered}\n---"
 
     def _table(self, value: object) -> str:
         return (

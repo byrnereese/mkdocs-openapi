@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from dataclasses import dataclass
 from importlib.resources import files as package_files
@@ -16,12 +17,13 @@ from mkdocs.exceptions import PluginError
 from mkdocs.structure.files import File, Files, InclusionLevel
 
 from .errors import OpenAPIError
-from .generator import generate_site
+from .generator import HTTP_METHODS, generate_site
 from .model import GeneratedSite
 from .parser import load_spec
 
 
 ASSET_URI = "assets/mkdocs-openapi.css"
+SCRIPT_URI = "assets/mkdocs-openapi.js"
 SPEC_SUFFIXES = {".json", ".yaml", ".yml"}
 REQUIRED_MARKDOWN_EXTENSIONS = (
     "admonition",
@@ -34,9 +36,7 @@ SUPPRESS_METHOD_BADGES_CSS = """
 
 /* Hide HTTP method badges in generated primary navigation. */
 .md-nav--primary .md-nav__link[href*="operation-"]::before,
-.md-nav--primary
-  .md-nav__item--active:has(> a[href*="operation-"])
-  > label.md-nav__link::before {
+.md-nav--primary .md-nav__link[data-api-method]::before {
   display: none;
 }
 """
@@ -108,17 +108,17 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
             raise PluginError("openapi: output_dir and models_dir must differ")
         self.config.output_dir = output_dir
         self.config.models_dir = models_dir
+        self._generated_page_uris: set[str] = set()
 
         self._configured_specs = self._resolve_configured_specs()
 
         if ASSET_URI not in config.extra_css:
             config.extra_css.append(ASSET_URI)
+        if not any(str(script) == SCRIPT_URI for script in config.extra_javascript):
+            config.extra_javascript.append(SCRIPT_URI)
         for extension in REQUIRED_MARKDOWN_EXTENSIONS:
             if extension not in config.markdown_extensions:
                 config.markdown_extensions.append(extension)
-        config.mdx_configs.setdefault("pymdownx.tabbed", {}).setdefault(
-            "alternate_style", True
-        )
         return config
 
     def on_files(self, files: Files, config: MkDocsConfig) -> Files:
@@ -201,6 +201,8 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                     )
                 page_owners[source_uri] = spec
 
+        self._generated_page_uris = set(page_owners)
+
         # Mutate MkDocs state only after every spec and generated URI validates.
         for spec_file in source_files.values():
             files.remove(spec_file)
@@ -250,12 +252,56 @@ class OpenAPIPlugin(plugins.BasePlugin[OpenAPIPluginConfig]):
                 css += SUPPRESS_METHOD_BADGES_CSS
             files.append(File.generated(config, ASSET_URI, content=css))
 
+        if files.get_file_from_path(SCRIPT_URI) is None:
+            javascript = (
+                package_files("mkdocs_openapi.assets")
+                .joinpath("mkdocs-openapi.js")
+                .read_text(encoding="utf-8")
+            )
+            files.append(
+                File.generated(config, SCRIPT_URI, content=javascript)
+            )
+
         replacements = {
             generated_spec.settings.source: generated_spec
             for generated_spec in generated_specs
         }
         config.nav = _replace_spec_nav(config.nav, replacements=replacements)
         return files
+
+    def on_post_page(
+        self, output: str, page: Any, config: MkDocsConfig
+    ) -> str:
+        """Add active-nav metadata and controls to generated pages."""
+        source_uri = page.file.src_uri
+        filename = PurePosixPath(page.file.src_uri).name
+        parts = filename.removesuffix(".md").split("-", 2)
+        is_operation = (
+            len(parts) == 3
+            and parts[0] == "operation"
+            and parts[1] in HTTP_METHODS
+        )
+        if is_operation:
+            active_class = 'class="md-nav__link md-nav__link--active"'
+            marked_class = f'{active_class} data-api-method="{parts[1]}"'
+            output = output.replace(active_class, marked_class)
+
+        if source_uri not in self._generated_page_uris:
+            return output
+
+        marker = '<article class="md-content__inner md-typeset">'
+        if marker not in output:
+            return output
+        markdown = json.dumps(
+            str(getattr(page, "markdown", "")), ensure_ascii=False
+        ).replace("<", "\\u003c")
+        operation = page.meta.get("openapi_operation")
+        operation_data = operation if isinstance(operation, dict) else None
+        actions = _page_actions_markup(
+            markdown,
+            operation=operation_data,
+        )
+        return output.replace(marker, marker + actions, 1)
 
     def _resolve_configured_specs(self) -> tuple[_ResolvedSpec, ...]:
         """Validate and normalize explicit multi-specification settings."""
@@ -459,6 +505,68 @@ def _replace_spec_nav(
             else:
                 rewritten.append({title: value})
     return rewritten
+
+
+def _page_actions_markup(
+    markdown: str,
+    *,
+    operation: dict[str, Any] | None = None,
+) -> str:
+    """Return the page-level copy and raw-Markdown action menu."""
+    copy_icon = (
+        '<svg viewBox="0 0 24 24" aria-hidden="true">'
+        '<path d="M8 7V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 '
+        '2h-2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3Zm2 0h5a2 '
+        '2 0 0 1 2 2v5h2V5h-9v2Zm5 2H5v10h10V9Z"/>'
+        "</svg>"
+    )
+    markdown_icon = (
+        '<svg viewBox="0 0 24 24" aria-hidden="true">'
+        '<path d="M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 '
+        '1-2-2V5a2 2 0 0 1 2-2Zm0 2v14h16V5H4Zm2 3h3l2 2.5L13 8h3v8h-2v-5l-3 '
+        '3.5L8 11v5H6V8Zm11 4 2 2-2 2v-4Z"/>'
+        "</svg>"
+    )
+    kebab = (
+        '<svg class="api-page-actions__kebab" viewBox="0 0 24 24" '
+        'aria-hidden="true"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 '
+        '6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>'
+        "</svg>"
+    )
+    operation_source = ""
+    if operation:
+        operation_json = json.dumps(
+            {
+                "method": str(operation.get("method", "")),
+                "endpoint": str(operation.get("endpoint", "")),
+            },
+            ensure_ascii=False,
+        ).replace("<", "\\u003c")
+        operation_source = (
+            '<script type="application/json" data-api-endpoint>'
+            f"{operation_json}</script>"
+        )
+
+    return (
+        '\n<div class="api-page-actions">'
+        '<details>'
+        '<summary aria-label="Page actions" title="Page actions">'
+        + kebab
+        + "</summary>"
+        '<div class="api-page-actions__menu" role="menu">'
+        '<button type="button" role="menuitem" data-api-copy-page>'
+        + copy_icon
+        + "<span>Copy page</span></button>"
+        '<button type="button" role="menuitem" data-api-view-markdown>'
+        + markdown_icon
+        + "<span>View as Markdown</span></button>"
+        "</div>"
+        "</details>"
+        '<span class="api-page-actions__feedback" aria-live="polite"></span>'
+        f'<script type="application/json" data-api-page-markdown>{markdown}</script>'
+        + operation_source
+        + "</div>\n"
+    )
 
 
 def _clean_spec_source(value: str, spec_id: str) -> str:

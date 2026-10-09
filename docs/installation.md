@@ -200,6 +200,18 @@ The plugin automatically enables the extensions required by its output:
 
 You can enable additional extensions normally in `mkdocs.yml`.
 
+## Operation page layout
+
+Operation pages combine the first applicable OpenAPI server URL with the path
+in a horizontally scrollable endpoint bar. Its copy button copies the complete
+displayed URL. Parameters are grouped by location and rendered as individual,
+wrapping-safe entries; request bodies retain their own content-type section.
+
+Each response status has its own tab. Response schema properties and examples
+are expanded directly in that tab without linking the response schema to its
+standalone model page. The Page actions menu can copy the generated Markdown
+or open it as plain Markdown in a new browser tab.
+
 ## Customize method colors
 
 Override the bundled CSS custom properties in your own stylesheet:

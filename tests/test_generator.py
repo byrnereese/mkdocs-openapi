@@ -46,9 +46,11 @@ def test_generates_petstore_pages_and_navigation() -> None:
     update_pet = generated.pages[
         "api-reference/pet/operation-put-update-pet.md"
     ]
-    assert "`PUT`{ .http-method .put } `/pet`{ .operation-path }" in update_pet
+    assert "openapi_operation:\n  method: PUT\n  endpoint: /api/v3/pet" in update_pet
+    assert '<div class="api-endpoint">' not in update_pet
+    assert "data-api-copy-endpoint" not in update_pet
     assert "**Schema:** [Pet](../../models/pet.md)" in update_pet
-    assert "| `name` | string | **Yes** |" not in update_pet
+    assert "| `name` | string | **Yes** |" in update_pet
     assert '=== "application/json"' in update_pet
     assert "tags:\n- pet\n- PUT" in update_pet
 
@@ -64,6 +66,31 @@ def test_generation_is_deterministic() -> None:
     assert first.pages == second.pages
     assert first.api_nav == second.api_nav
     assert first.models_nav == second.models_nav
+
+
+def test_api_overview_separates_bullet_lists_from_introductory_text() -> None:
+    document = {
+        "openapi": "3.0.3",
+        "info": {
+            "title": "Unified API",
+            "version": "1",
+            "description": (
+                "Complete API reference.\n\n"
+                "This specification includes:\n"
+                "- **Voice** — Voice operations\n"
+                "- **Workspaces** — Workspace management"
+            ),
+        },
+        "paths": {},
+    }
+
+    overview = generate_site(document).pages["api-reference/index.md"]
+
+    assert (
+        "This specification includes:\n\n"
+        "- **Voice** — Voice operations\n"
+        "- **Workspaces** — Workspace management"
+    ) in overview
 
 
 def test_inlines_reachable_models_without_generating_model_pages() -> None:
@@ -142,6 +169,120 @@ def test_inlines_reachable_models_without_generating_model_pages() -> None:
 def test_rejects_invalid_models_mode() -> None:
     with pytest.raises(OpenAPIError, match="models_mode must be one of"):
         generate_site(petstore(), models_mode="separate")
+
+
+def test_renders_parameters_as_separate_inline_sections() -> None:
+    document = {
+        "openapi": "3.0.3",
+        "info": {"title": "Parameters", "version": "1"},
+        "servers": [{"url": "https://api.example.test/v1"}],
+        "paths": {
+            "/accounts/{accountId}": {
+                "get": {
+                    "parameters": [
+                        {
+                            "name": "accountId",
+                            "in": "path",
+                            "required": True,
+                            "description": "The account to retrieve.",
+                            "schema": {"type": "string"},
+                        },
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "schema": {"type": "integer"},
+                        },
+                    ],
+                    "responses": {"204": {"description": "No content"}},
+                }
+            }
+        },
+    }
+
+    generated = generate_site(document)
+    operation = generated.pages[
+        "api-reference/untagged/operation-get-get-accounts-account-id.md"
+    ]
+
+    assert "## Path parameters" in operation
+    assert "## Query parameters" in operation
+    assert '<code class="api-parameter__name">accountId</code>' in operation
+    assert '<code class="api-parameter__type">string</code>' in operation
+    assert '<span class="api-parameter__required">required</span>' in operation
+    assert "The account to retrieve." in operation
+    assert "| Name | Location |" not in operation
+    assert "https://api.example.test/v1/accounts/{accountId}" in operation
+
+
+def test_renders_responses_as_tabs_with_unlinked_inline_schemas() -> None:
+    document = {
+        "openapi": "3.0.3",
+        "info": {"title": "Responses", "version": "1"},
+        "paths": {
+            "/pets": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "description": "Found",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/Pet"
+                                    }
+                                }
+                            },
+                        },
+                        "404": {"description": "Not found"},
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "Pet": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {"name": {"type": "string"}},
+                }
+            }
+        },
+    }
+
+    generated = generate_site(document, models_mode="inline")
+    operation = generated.pages[
+        "api-reference/untagged/operation-get-get-pets.md"
+    ]
+
+    assert '=== "200"' in operation
+    assert '=== "404"' in operation
+    assert "**Schema:** Pet" in operation
+    assert "| `name` | string | **Yes** |" in operation
+    assert "#model-pet" not in operation
+    assert "## Models" not in operation
+
+
+def test_abbreviates_delete_method_badges() -> None:
+    generated = generate_site(
+        {
+            "openapi": "3.0.3",
+            "info": {"title": "Delete", "version": "1"},
+            "paths": {
+                "/pets/{id}": {
+                    "delete": {
+                        "responses": {"204": {"description": "Deleted"}}
+                    }
+                }
+            },
+        }
+    )
+    operation = generated.pages[
+        "api-reference/untagged/operation-delete-delete-pets-id.md"
+    ]
+
+    assert "openapi_operation:\n  method: DELETE" in operation
+    assert "`DEL`{ .http-method .delete }" in generated.pages[
+        "api-reference/untagged/index.md"
+    ]
 
 
 def test_suppresses_tag_overviews_from_navigation_only() -> None:

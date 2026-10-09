@@ -16,6 +16,7 @@ class Operation:
     tags: tuple[str, ...]
     primary_tag: str
     source_uri: str
+    server_url: str
     data: dict
     path_parameters: tuple[dict, ...] = ()
 

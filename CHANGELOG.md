@@ -2,6 +2,33 @@
 
 All notable changes to `mkdocs-openapi` are documented here.
 
+## 0.3.2 — 2026-10-09
+
+### Added
+
+- Operation endpoint bars with horizontally scrollable URLs and copy controls.
+- Page action menus for copying generated Markdown or viewing it in a new tab.
+  The menu uses a compact three-dot action button.
+- Deprecated operations display a Material warning admonition.
+
+### Changed
+
+- Parameters render as wrapping-safe entries grouped into path, query, header,
+  cookie, and request-body sections.
+- Responses render as status-code tabs with schema properties expanded inline
+  instead of linking response schemas to model pages.
+- HTTP method pills are narrower, and `DELETE` pills use the compact `DEL`
+  label.
+- Generated content tabs use the site's normal Material/PyMdown styling rather
+  than forcing the alternate tab style.
+
+### Fixed
+
+- HTTP method pills remain visible when their operation page is active in
+  Material's primary navigation.
+- Bullet lists in API overview descriptions render as lists when they directly
+  follow introductory text.
+
 ## 0.3.0 — 2026-10-07
 
 ### Added

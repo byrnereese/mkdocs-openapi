@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .errors import OpenAPIError
@@ -117,6 +117,9 @@ def generate_site(
                 tags=tags,
                 primary_tag=primary_tag,
                 source_uri=source_uri,
+                server_url=_operation_server_url(
+                    document, path_item, operation_data
+                ),
                 data=operation_data,
                 path_parameters=path_parameters,
             )
@@ -205,6 +208,34 @@ def generate_site(
         operations=operations,
         models=models,
     )
+
+
+def _operation_server_url(
+    document: Mapping,
+    path_item: Mapping,
+    operation: Mapping,
+) -> str:
+    """Return the first applicable server URL with default variables filled."""
+    for owner in (operation, path_item, document):
+        servers = owner.get("servers", [])
+        if not isinstance(servers, Sequence) or isinstance(
+            servers, (str, bytes)
+        ):
+            continue
+        for server in servers:
+            if not isinstance(server, Mapping) or not server.get("url"):
+                continue
+            url = str(server["url"])
+            variables = server.get("variables", {})
+            if isinstance(variables, Mapping):
+                for name, raw_variable in variables.items():
+                    if isinstance(raw_variable, Mapping) and "default" in raw_variable:
+                        url = url.replace(
+                            "{" + str(name) + "}",
+                            str(raw_variable["default"]),
+                        )
+            return url
+    return ""
 
 
 def _operation_title(operation: Mapping, method: str, path: str) -> str:

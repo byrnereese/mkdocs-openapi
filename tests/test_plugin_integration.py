@@ -73,7 +73,12 @@ def test_mkdocs_builds_generated_markdown_with_material(tmp_path: Path) -> None:
         "openapi": "3.0.3",
         "info": {
             "title": "Tiny API",
-            "description": "An integration fixture.",
+            "description": (
+                "An integration fixture.\n\n"
+                "This specification includes:\n"
+                "- Pet creation\n"
+                "- Pet data models"
+            ),
             "version": "1.0.0",
         },
         "tags": [{"name": "Pets", "description": "Pet operations."}],
@@ -83,6 +88,7 @@ def test_mkdocs_builds_generated_markdown_with_material(tmp_path: Path) -> None:
                     "tags": ["Pets"],
                     "summary": "Create a pet",
                     "operationId": "createPet",
+                    "deprecated": True,
                     "requestBody": {
                         "required": True,
                         "content": {
@@ -185,23 +191,41 @@ validation:
     assert (site / "reference/pets/index.html").is_file()
     assert (site / "data-models/index.html").is_file()
     assert (site / "assets/mkdocs-openapi.css").is_file()
+    assert (site / "assets/mkdocs-openapi.js").is_file()
     assert not (site / "openapi/spec.yaml").exists()
 
     operation_html = operation.read_text()
     reference_html = (site / "reference/index.html").read_text()
     assert "\n    Core\n" in reference_html
     assert ">Overview</a>" not in reference_html
-    assert 'class="http-method post"' in operation_html
+    assert "<p>This specification includes:</p>" in reference_html
+    assert "<li>Pet creation</li>" in reference_html
+    assert "<li>Pet data models</li>" in reference_html
+    assert 'data-api-endpoint>{"method": "POST", "endpoint": "/pets"}' in operation_html
+    assert 'data-api-method="post"' in operation_html
     assert "../../data-models/pet.html" in operation_html
     assert '<span class="md-tag">POST</span>' in operation_html
     assert '<span class="md-tag">Pets</span>' in operation_html
     assert "Mochi" in operation_html
+    assert "Page actions" in operation_html
+    assert "View as Markdown" in operation_html
+    assert "data-api-endpoint" in operation_html
+    assert '<div class="api-endpoint">' not in operation_html
+    assert '<div class="tabbed-set"' in operation_html
+    assert "tabbed-alternate" not in operation_html
+    assert "<strong>Schema:</strong> Pet" in operation_html
+    assert '<div class="admonition warning">' in operation_html
+    assert '<p class="admonition-title">Deprecated</p>' in operation_html
+    assert "This operation is deprecated." in operation_html
 
     css = (site / "assets/mkdocs-openapi.css").read_text()
     assert "--api-method-post-color: #49cc90" in css
     assert "--api-method-text-color: #ffffff" in css
     assert ".md-typeset code.http-method" in css
-    assert "flex: 0 0 2.35rem" in css
+    assert '.md-nav__link[data-api-method="post"]::before' in css
+    assert "flex: 0 0 1.9rem" in css
+    assert "overflow-x: auto" in css
+    assert 'content: "DEL"' in css
     assert "Hide HTTP method badges" in css
     assert "display: none" in css
 
@@ -268,8 +292,8 @@ validation:
     assert operation.is_file()
     assert not (site / "models").exists()
     operation_html = operation.read_text()
-    assert 'href="#model-pet"' in operation_html
-    assert 'id="model-pet"' in operation_html
+    assert 'href="#model-pet"' not in operation_html
+    assert 'id="model-pet"' not in operation_html
     assert "Properties" in operation_html
 
 
@@ -362,8 +386,10 @@ validation:
 
     pets_html = pets_operation.read_text()
     orders_html = orders_operation.read_text()
-    assert 'href="../models/pet.html"' in pets_html
-    assert "../../../schemas/orders/order.html" in orders_html
+    assert "<strong>Schema:</strong> Pet" in pets_html
+    assert "<strong>Schema:</strong> Order" in orders_html
+    assert "<strong>Schema:</strong> <a" not in pets_html
+    assert "<strong>Schema:</strong> <a" not in orders_html
 
     home_html = (site / "index.html").read_text()
     assert "Pets API" in home_html
