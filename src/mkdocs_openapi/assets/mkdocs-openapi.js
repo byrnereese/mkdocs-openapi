@@ -38,6 +38,22 @@
     }
   }
 
+  function openInAI(provider) {
+    var prompt =
+      "Read this documentation page and answer questions about it: " +
+      window.location.href;
+    var baseUrl =
+      provider === "claude"
+        ? "https://claude.ai/new?q="
+        : "https://chatgpt.com/?q=";
+    window.open(baseUrl + encodeURIComponent(prompt), "_blank", "noopener,noreferrer");
+  }
+
+  function closePageActions(container) {
+    var details = container.querySelector("details");
+    if (details) details.open = false;
+  }
+
   function createEndpointBars(root) {
     root.querySelectorAll("[data-api-endpoint]").forEach(function (source) {
       if (source.dataset.apiReady) return;
@@ -114,18 +130,18 @@
     root.querySelectorAll(".api-page-actions").forEach(function (container) {
       if (container.dataset.apiReady) return;
       container.dataset.apiReady = "true";
-      var copyButton = container.querySelector("[data-api-copy-page]");
+      var copyButtons = container.querySelectorAll("[data-api-copy-page]");
       var viewButton = container.querySelector("[data-api-view-markdown]");
+      var aiButtons = container.querySelectorAll("[data-api-open-ai]");
 
-      if (copyButton) {
+      copyButtons.forEach(function (copyButton) {
         copyButton.addEventListener("click", function () {
           copyText(pageMarkdown(container)).then(function () {
             showFeedback(container, "Markdown copied");
-            var details = container.querySelector("details");
-            if (details) details.open = false;
+            closePageActions(container);
           });
         });
-      }
+      });
 
       if (viewButton) {
         viewButton.addEventListener("click", function () {
@@ -137,10 +153,16 @@
           window.setTimeout(function () {
             URL.revokeObjectURL(url);
           }, 60000);
-          var details = container.querySelector("details");
-          if (details) details.open = false;
+          closePageActions(container);
         });
       }
+
+      aiButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          openInAI(button.dataset.apiOpenAi);
+          closePageActions(container);
+        });
+      });
     });
   }
 

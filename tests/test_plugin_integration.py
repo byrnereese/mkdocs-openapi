@@ -209,6 +209,10 @@ validation:
     assert "Mochi" in operation_html
     assert "Page actions" in operation_html
     assert "View as Markdown" in operation_html
+    assert "Open in ChatGPT" in operation_html
+    assert "Open in Claude" in operation_html
+    assert "Ask questions about this page" in operation_html
+    assert operation_html.count("data-api-copy-page") == 2
     assert "data-api-endpoint" in operation_html
     assert '<div class="api-endpoint">' not in operation_html
     assert '<div class="tabbed-set"' in operation_html
@@ -225,6 +229,9 @@ validation:
     assert '.md-nav__link[data-api-method="post"]::before' in css
     assert "flex: 0 0 1.9rem" in css
     assert "overflow-x: auto" in css
+    assert ".md-typeset .api-page-actions details" in css
+    assert "border: 0" in css
+    assert "margin: 0" in css
     assert 'content: "DEL"' in css
     assert "Hide HTTP method badges" in css
     assert "display: none" in css

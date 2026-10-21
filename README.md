@@ -271,8 +271,8 @@ omitted, all tags retain their default order.
   request bodies in their own section.
 - Responses render in status-code tabs and expand response schemas inline
   without linking them to standalone model pages.
-- Generated pages provide actions to copy their Markdown or view the Markdown
-  source in a new browser tab.
+- Generated pages provide a contextual action menu for copying or viewing their
+  Markdown and opening the current page as context in ChatGPT or Claude.
 - In `pages` mode, each `components.schemas` entry generates a model page and
   local schema `$ref` values link to it.
 - In `inline` mode, each operation includes its reachable component schemas and

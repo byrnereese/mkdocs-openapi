@@ -2,6 +2,21 @@
 
 All notable changes to `mkdocs-openapi` are documented here.
 
+## 0.3.3 — 2026-10-20
+
+### Added
+
+- The page actions control now uses a split-button layout with contextual menu
+  entries for opening the current documentation page in ChatGPT or Claude.
+- Page action entries include icons and short descriptions for easier scanning.
+
+### Changed
+
+- The primary page action copies generated Markdown directly, while the
+  adjacent chevron opens the complete contextual menu.
+- Page action styles now isolate the split button from MkDocs Material's
+  global `details` and `summary` styles.
+
 ## 0.3.2 — 2026-10-09
 
 ### Added

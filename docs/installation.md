@@ -209,8 +209,9 @@ wrapping-safe entries; request bodies retain their own content-type section.
 
 Each response status has its own tab. Response schema properties and examples
 are expanded directly in that tab without linking the response schema to its
-standalone model page. The Page actions menu can copy the generated Markdown
-or open it as plain Markdown in a new browser tab.
+standalone model page. The Page actions menu can copy the generated Markdown,
+open it as plain Markdown in a new browser tab, or send the current page URL to
+a new ChatGPT or Claude conversation.
 
 ## Customize method colors
 
