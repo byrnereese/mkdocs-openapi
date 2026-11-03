@@ -153,7 +153,7 @@ in `nav` must be registered under `specs`.
 The plugin automatically:
 
 - adds its bundled `mkdocs-openapi.css` stylesheet;
-- adds its bundled interaction script for URL copying and page actions;
+- adds its bundled interaction script for endpoint URL copying;
 - enables `admonition`, `attr_list`, `tables`, `pymdownx.superfences`, and
   `pymdownx.tabbed`;
 - uses the site's configured Material/PyMdown tab style;
@@ -271,8 +271,9 @@ omitted, all tags retain their default order.
   request bodies in their own section.
 - Responses render in status-code tabs and expand response schemas inline
   without linking them to standalone model pages.
-- Generated pages provide a contextual action menu for copying or viewing their
-  Markdown and opening the current page as context in ChatGPT or Claude.
+- Generated pages include `page_actions: true` metadata. When the independent
+  `mkdocs-page-actions` plugin is installed, this enables its contextual page
+  menu without making either plugin depend on the other.
 - In `pages` mode, each `components.schemas` entry generates a model page and
   local schema `$ref` values link to it.
 - In `inline` mode, each operation includes its reachable component schemas and

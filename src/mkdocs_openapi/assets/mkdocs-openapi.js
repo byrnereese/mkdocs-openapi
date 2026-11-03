@@ -18,40 +18,12 @@
   }
 
   function showFeedback(container, message) {
-    var feedback = container.querySelector(
-      ".api-copy-feedback, .api-page-actions__feedback"
-    );
+    var feedback = container.querySelector(".api-copy-feedback");
     if (!feedback) return;
     feedback.textContent = message;
     window.setTimeout(function () {
       feedback.textContent = "";
     }, 1800);
-  }
-
-  function pageMarkdown(container) {
-    var source = container.querySelector("[data-api-page-markdown]");
-    if (!source) return "";
-    try {
-      return JSON.parse(source.textContent || '""');
-    } catch (_error) {
-      return "";
-    }
-  }
-
-  function openInAI(provider) {
-    var prompt =
-      "Read this documentation page and answer questions about it: " +
-      window.location.href;
-    var baseUrl =
-      provider === "claude"
-        ? "https://claude.ai/new?q="
-        : "https://chatgpt.com/?q=";
-    window.open(baseUrl + encodeURIComponent(prompt), "_blank", "noopener,noreferrer");
-  }
-
-  function closePageActions(container) {
-    var details = container.querySelector("details");
-    if (details) details.open = false;
   }
 
   function createEndpointBars(root) {
@@ -127,43 +99,6 @@
       });
     });
 
-    root.querySelectorAll(".api-page-actions").forEach(function (container) {
-      if (container.dataset.apiReady) return;
-      container.dataset.apiReady = "true";
-      var copyButtons = container.querySelectorAll("[data-api-copy-page]");
-      var viewButton = container.querySelector("[data-api-view-markdown]");
-      var aiButtons = container.querySelectorAll("[data-api-open-ai]");
-
-      copyButtons.forEach(function (copyButton) {
-        copyButton.addEventListener("click", function () {
-          copyText(pageMarkdown(container)).then(function () {
-            showFeedback(container, "Markdown copied");
-            closePageActions(container);
-          });
-        });
-      });
-
-      if (viewButton) {
-        viewButton.addEventListener("click", function () {
-          var blob = new Blob([pageMarkdown(container)], {
-            type: "text/plain;charset=utf-8",
-          });
-          var url = URL.createObjectURL(blob);
-          window.open(url, "_blank", "noopener");
-          window.setTimeout(function () {
-            URL.revokeObjectURL(url);
-          }, 60000);
-          closePageActions(container);
-        });
-      }
-
-      aiButtons.forEach(function (button) {
-        button.addEventListener("click", function () {
-          openInAI(button.dataset.apiOpenAi);
-          closePageActions(container);
-        });
-      });
-    });
   }
 
   function start() {

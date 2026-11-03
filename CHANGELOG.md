@@ -2,6 +2,17 @@
 
 All notable changes to `mkdocs-openapi` are documented here.
 
+## 0.4.0 — 2026-11-03
+
+### Changed
+
+- Page actions have moved into the independent `mkdocs-page-actions` plugin.
+  Generated pages now declare `page_actions: true` metadata, which enables the
+  controls when that plugin is installed without introducing a dependency
+  between the packages.
+- The bundled OpenAPI browser assets now contain only OpenAPI-specific endpoint
+  and navigation behavior.
+
 ## 0.3.3 — 2026-10-20
 
 ### Added

@@ -43,7 +43,7 @@ class MarkdownRenderer:
         """Render the API-level landing page."""
         info = self.document.get("info", {})
         title = str(info.get("title") or "API reference")
-        lines = [f"# {title}", ""]
+        lines = [self._frontmatter([]), f"# {title}", ""]
         description = self._normalize_markdown_lists(
             info.get("description", "")
         )
@@ -1024,7 +1024,9 @@ class MarkdownRenderer:
         *,
         metadata: Mapping[str, object] | None = None,
     ) -> str:
-        data: dict[str, object] = {"tags": tags}
+        data: dict[str, object] = {"page_actions": True}
+        if tags:
+            data["tags"] = tags
         if metadata:
             data.update(metadata)
         rendered = yaml.safe_dump(

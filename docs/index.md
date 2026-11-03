@@ -70,8 +70,9 @@ they do for authored documentation.
 
 The generated pages use inline parameter details, response content tabs,
 admonitions, fenced code blocks, page metadata, and attribute lists. Bundled
-styles and interactions provide method badges, scrollable endpoint URLs, copy
-controls, and Markdown page actions.
+styles and interactions provide method badges, scrollable endpoint URLs, and
+copy controls. Generated pages opt into the independent `mkdocs-page-actions`
+plugin through ordinary page metadata.
 
 ## Current scope
 

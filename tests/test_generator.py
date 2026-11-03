@@ -42,10 +42,12 @@ def test_generates_petstore_pages_and_navigation() -> None:
         "Pet",
         "ApiResponse",
     ]
+    assert all("page_actions: true" in page for page in generated.pages.values())
 
     update_pet = generated.pages[
         "api-reference/pet/operation-put-update-pet.md"
     ]
+    assert "page_actions: true" in update_pet
     assert "openapi_operation:\n  method: PUT\n  endpoint: /api/v3/pet" in update_pet
     assert '<div class="api-endpoint">' not in update_pet
     assert "data-api-copy-endpoint" not in update_pet
